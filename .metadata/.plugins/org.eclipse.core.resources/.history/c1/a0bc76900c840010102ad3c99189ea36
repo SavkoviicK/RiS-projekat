@@ -1,0 +1,53 @@
+package com.veterinarska.stanica.controller;
+
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import java.util.List;
+
+import com.veterinarska.stanica.model.Pregled;
+import com.veterinarska.stanica.repository.PregledRepository;
+
+@RestController
+@RequestMapping("/api/pregledi")
+public class PregledController {
+
+    private final PregledRepository repo;
+
+    public PregledController(PregledRepository repo) {
+        this.repo = repo;
+    }
+
+    // Dodaj pregled
+    @PostMapping
+    public ResponseEntity<Pregled> dodaj(@RequestBody Pregled p) {
+        return ResponseEntity.ok(repo.save(p));
+    }
+
+    // Svi pregledi
+    @GetMapping
+    public List<Pregled> svi() {
+        return repo.findAll();
+    }
+    
+    @PutMapping("/{id}")
+    public ResponseEntity<?> izmeniTermin(@PathVariable Long id, @RequestBody Pregled p) {
+        return repo.findById(id)
+            .map(postojeci -> {
+                postojeci.setUsluga(p.getUsluga() != null ? p.getUsluga() : postojeci.getUsluga());
+                postojeci.setDatumPocetka(p.getDatumPocetka() != null ? p.getDatumPocetka() : postojeci.getDatumPocetka());
+                postojeci.setDatumZavrsetka(p.getDatumZavrsetka());
+                postojeci.setNapomena(p.getNapomena());
+                return ResponseEntity.ok(repo.save(postojeci));
+            })
+            .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<?> otkazi(@PathVariable Long id) {
+        if (!repo.existsById(id)) return ResponseEntity.notFound().build();
+        repo.deleteById(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    
+}

@@ -1,0 +1,95 @@
+package com.veterinarska.stanica.controller;
+
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.web.bind.annotation.*;
+
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
+
+import com.veterinarska.stanica.model.Korisnik;
+import com.veterinarska.stanica.model.Uloga;
+import com.veterinarska.stanica.repository.KorisnikRepository;
+import com.veterinarska.stanica.security.JwtUtil;
+
+@RestController
+@RequestMapping("/api/auth")
+public class AuthController {
+
+    private final KorisnikRepository repo;
+    private final PasswordEncoder encoder;
+    private final JwtUtil jwt;
+
+    public AuthController(KorisnikRepository repo, PasswordEncoder encoder, JwtUtil jwt) {
+        this.repo = repo;
+        this.encoder = encoder;
+        this.jwt = jwt;
+    }
+
+    public static record LoginRequest(String email, String lozinka) {}
+    public static record LoginResponse(String token) {}
+
+    @PostMapping("/login")
+    public ResponseEntity<?> login(@RequestBody LoginRequest req) {
+        var kOpt = repo.findByEmail(req.email());
+        if (kOpt.isEmpty() || !encoder.matches(req.lozinka(), kOpt.get().getLozinka())) {
+            return ResponseEntity.status(401).body(Map.of("message","Neispravan email ili lozinka"));
+        }
+        String token = jwt.generateToken(kOpt.get().getEmail());
+        return ResponseEntity.ok(new LoginResponse(token));
+    }
+
+    @GetMapping("/whoami")
+    public Map<String, Object> whoami(Authentication auth) {
+        if (auth == null || auth.getName() == null) {
+            return Map.of("authorities", List.of());
+        }
+        var kOpt = repo.findByEmail(auth.getName());
+        if (kOpt.isEmpty()) {
+            return Map.of("authorities", List.of());
+        }
+        String role = "ROLE_" + kOpt.get().getUloga().name();
+        return Map.of("authorities", List.of(Map.of("authority", role)));
+    }
+
+    public static record RegistracijaRequest(String ime, String prezime, String email, String lozinka, String uloga) {}
+
+    public static record RegistracijaRequest(
+            @NotBlank(message = "Ime je obavezno") String ime,
+            @NotBlank(message = "Prezime je obavezno") String prezime,
+            @NotBlank(message = "Email je obavezan") @Email(message = "Email nije ispravan") String email,
+            @NotBlank(message = "Lozinka je obavezna") @Size(min = 8, message = "Lozinka mora imati bar 8 karaktera") String lozinka,
+            String uloga
+    ) {}
+    
+    @PostMapping("/registracija")
+    public ResponseEntity<?> registracija(@RequestBody RegistracijaRequest req) {
+        if (repo.findByEmail(req.email()).isPresent()) {
+            return ResponseEntity.status(409).body(Map.of("message", "Email je zauzet"));
+        }
+
+        Korisnik k = new Korisnik();
+        k.setIme(req.ime());
+        k.setPrezime(req.prezime());
+        k.setEmail(req.email());
+        k.setLozinka(encoder.encode(req.lozinka()));
+
+        Uloga u;
+        try {
+            u = (req.uloga() != null && !req.uloga().isBlank())
+                    ? Uloga.valueOf(req.uloga().toUpperCase())
+                    : Uloga.VLASNIK;
+        } catch (IllegalArgumentException e) {
+            u = Uloga.VLASNIK;
+        }
+        k.setUloga(u);
+
+        k.setAktivan(true);
+        k.setDatumKreiranja(LocalDateTime.now());
+
+        repo.save(k);
+        return ResponseEntity.status(201).body(Map.of("id", k.getId(), "uloga", k.getUloga().name()));
+    }
+}

@@ -1,0 +1,34 @@
+package com.veterinarska.stanica.controllers;
+
+import com.veterinarska.stanica.dto.MessageDto;
+import com.veterinarska.stanica.model.Message;
+import com.veterinarska.stanica.service.MessageService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/messages")
+public class MessageController {
+
+    @Autowired
+    private MessageService messageService;
+
+    // slanje poruke
+    @PreAuthorize("hasRole('USER') or hasRole('VLASNIK') or hasRole('VETERINAR')")
+    @PostMapping
+    public ResponseEntity<String> sendMessage(@RequestBody MessageDto messageDto) {
+        messageService.sendMessage(messageDto);
+        return ResponseEntity.ok("Poruka je poslata.");
+    }
+
+    // čitanje poruka između dva korisnika
+    @PreAuthorize("hasRole('USER') or hasRole('VLASNIK') or hasRole('VETERINAR')")
+    @GetMapping
+    public List<Message> getMessages(@RequestParam Long user1Id, @RequestParam Long user2Id) {
+        return messageService.getMessagesBetweenUsers(user1Id, user2Id);
+    }
+}

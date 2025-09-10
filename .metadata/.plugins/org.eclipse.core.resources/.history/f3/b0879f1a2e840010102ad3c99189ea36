@@ -1,0 +1,79 @@
+package com.veterinarska.stanica.mapper;
+
+import com.veterinarska.stanica.dto.*;
+import com.veterinarska.stanica.model.*;
+//import com.veterinarska.stanica.dto.UslugaDTO;
+//import com.veterinarska.stanica.model.Usluga;
+
+public class AppMapper {
+
+    public static KorisnikDTO toDTO(Korisnik k) {
+        if (k == null) return null;
+        return new KorisnikDTO(k.getId(), k.getEmail(), k.getIme(), k.getPrezime(), k.getUloga());
+    }
+
+    public static LjubimacDTO toDTO(Ljubimac l) {
+        if (l == null) return null;
+        var vlasnik = l.getVlasnik();
+        Long vlasnikId = vlasnik != null ? vlasnik.getId() : null;
+        String vlasnikEmail = vlasnik != null ? vlasnik.getEmail() : null;
+        return new LjubimacDTO(l.getId(), l.getIme(), l.getVrsta(), l.getRasa(), l.getPol(),
+                               vlasnikId, vlasnikEmail);
+    }
+    
+    public static UslugaDTO toDTO(Usluga u) {
+        if (u == null) return null;
+        return new UslugaDTO(u.getId(), u.getNaziv(), u.getOpis());
+    }
+    
+    public static PregledDTO toDTO(Pregled p) {
+        if (p == null) return null;
+        var l = p.getLjubimac();
+        var vlasnik = (l != null) ? l.getVlasnik() : null;
+        var v = p.getVeterinar();
+        var u = p.getUsluga();
+
+        Long ljubimacId = (l != null) ? l.getId() : null;
+        String ljubimacIme = (l != null) ? l.getIme() : null;
+
+        Long vlasnikId = (vlasnik != null) ? vlasnik.getId() : null;
+        String vlasnikEmail = (vlasnik != null) ? vlasnik.getEmail() : null;
+
+        Long veterinarId = (v != null) ? v.getId() : null;
+        String veterinarIme = (v != null) ? (v.getIme() + " " + v.getPrezime()) : null;
+
+        Long uslugaId = (u != null) ? u.getId() : null;
+        String uslugaNaziv = (u != null) ? u.getNaziv() : null;
+
+        String status = (p.getStatus() != null) ? p.getStatus().name() : null;
+
+        return new PregledDTO(
+            p.getId(),
+            ljubimacId, ljubimacIme,
+            vlasnikId, vlasnikEmail,
+            veterinarId, veterinarIme,
+            uslugaId, uslugaNaziv,
+            p.getDatumPocetka(), p.getDatumZavrsetka(),
+            status, p.getNapomena()
+        );
+    }
+    
+    public static MedicinskiZapisDTO toDTO(MedicinskiZapis m) {
+        if (m == null) return null;
+        var l = m.getLjubimac();
+        var v = m.getVeterinar();
+        Long ljubimacId = l != null ? l.getId() : null;
+        String ljubimacIme = l != null ? l.getIme() : null;
+        Long veterinarId = v != null ? v.getId() : null;
+        String veterinarIme = v != null ? (v.getIme() + " " + v.getPrezime()) : null;
+
+        return new MedicinskiZapisDTO(
+            m.getId(),
+            ljubimacId, ljubimacIme,
+            veterinarId, veterinarIme,
+            m.getDijagnoza(), m.getTerapija(),
+            m.getDatum()
+        );
+
+
+}

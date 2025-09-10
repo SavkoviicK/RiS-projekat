@@ -1,0 +1,95 @@
+package com.veterinarska.stanica.controller;
+
+import com.veterinarska.stanica.model.Korisnik;
+import com.veterinarska.stanica.model.ZahtevZaPrijateljstvo;
+import com.veterinarska.stanica.service.PrijateljiService;
+import com.veterinarska.stanica.repository.KorisnikRepository;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/prijatelji")
+public class PrijateljiController {
+
+    private final PrijateljiService prijateljiService;
+    private final KorisnikRepository korisnikRepo;
+
+    public PrijateljiController(PrijateljiService prijateljiService,
+                                KorisnikRepository korisnikRepo) {
+        this.prijateljiService = prijateljiService;
+        this.korisnikRepo = korisnikRepo;
+    }
+
+    /** Pošalji zahtev ulogovanog korisnika ka korisniku {primaocId}. */
+    @PostMapping("/zahtev")
+    public ResponseEntity<?> posaljiZahtev(@RequestParam("primaocId") Long primaocId,
+                                           Authentication auth) {
+        if (auth == null || auth.getName() == null) {
+            return ResponseEntity.status(401).body("Niste prijavljeni.");
+        }
+        try {
+            Korisnik ja = korisnikRepo.findByEmail(auth.getName())
+                    .orElseThrow(() -> new IllegalArgumentException("Korisnik ne postoji"));
+
+            prijateljiService.posaljiZahtev(ja.getId(), primaocId);
+            return ResponseEntity.ok("Zahtev za prijateljstvo je poslat.");
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("Greška: " + e.getClass().getSimpleName());
+        }
+    }
+
+    /** Odgovori na zahtev (prihvati/odbij). */
+    @PostMapping("/odgovor")
+    public ResponseEntity<?> odgovori(@RequestParam("zahtevId") Long zahtevId,
+                                      @RequestParam("prihvati") boolean prihvati,
+                                      Authentication auth) {
+        if (auth == null || auth.getName() == null) {
+            return ResponseEntity.status(401).body("Niste prijavljeni.");
+        }
+        try {
+            prijateljiService.odgovoriNaZahtev(zahtevId, prihvati);
+            return ResponseEntity.ok("Zahtev je ažuriran.");
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("Greška: " + e.getClass().getSimpleName());
+        }
+    }
+
+    /** Pending zahtevi koji su stigli meni (ulogovanom). */
+    @GetMapping("/na-cekaju")
+    public ResponseEntity<?> naCekanju(Authentication auth) {
+        if (auth == null || auth.getName() == null) {
+            return ResponseEntity.status(401).body("Niste prijavljeni.");
+        }
+        try {
+            Korisnik ja = korisnikRepo.findByEmail(auth.getName())
+                    .orElseThrow(() -> new IllegalArgumentException("Korisnik ne postoji"));
+            List<ZahtevZaPrijateljstvo> out = prijateljiService.pendingZa(ja.getId());
+            return ResponseEntity.ok(out);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    /** Lista mojih prijatelja (ulogovani). */
+    @GetMapping
+    public ResponseEntity<?> lista(Authentication auth) {
+        if (auth == null || auth.getName() == null) {
+            return ResponseEntity.status(401).body("Niste prijavljeni.");
+        }
+        try {
+            Korisnik ja = korisnikRepo.findByEmail(auth.getName())
+                    .orElseThrow(() -> new IllegalArgumentException("Korisnik ne postoji"));
+            List<Korisnik> out = prijateljiService.listaPrijatelja(ja.getId());
+            return ResponseEntity.ok(out);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+}

@@ -1,0 +1,21 @@
+package com.veterinarska.stanica.repository;
+
+import com.veterinarska.stanica.model.FriendRequest;
+import com.veterinarska.stanica.model.Korisnik;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.util.List;
+
+public interface FriendRequestRepository extends JpaRepository<FriendRequest, Long> {
+
+    boolean existsByFromUserAndToUserAndStatus(
+            Korisnik from,
+            Korisnik to,
+            FriendRequest.Status status
+    );
+
+    List<FriendRequest> findByToUserAndStatus(
+            Korisnik to,
+            FriendRequest.Status status
+    );
+}

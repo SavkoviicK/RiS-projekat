@@ -1,0 +1,156 @@
+package com.veterinarska.stanica.controller;
+
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.veterinarska.stanica.dto.MedicinskiZapisDTO;
+import com.veterinarska.stanica.mapper.AppMapper;
+import com.veterinarska.stanica.model.*;
+import com.veterinarska.stanica.repository.KorisnikRepository;
+import com.veterinarska.stanica.repository.LjubimacRepository;
+import com.veterinarska.stanica.repository.MedicinskiZapisRepository;
+import com.veterinarska.stanica.repository.PregledRepository;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.*;
+
+import java.time.format.DateTimeFormatter;
+import java.util.*;
+
+import static com.veterinarska.stanica.mapper.AppMapper.toDTO;
+
+@RestController
+@RequestMapping({
+        "/api/medicinski-zapisi",
+        "/api/medicinski-zapis",
+        "/api/medicinskiZapis",
+        "/api/medicinskiZapisi"
+})
+public class MedicinskiZapisController {
+
+    private final MedicinskiZapisRepository zapisRepo;
+    private final LjubimacRepository ljubimacRepo;
+    private final KorisnikRepository korisnikRepo;
+    private final PregledRepository pregledRepo;
+
+    public MedicinskiZapisController(MedicinskiZapisRepository zapisRepo,
+                                     LjubimacRepository ljubimacRepo,
+                                     KorisnikRepository korisnikRepo,
+                                     PregledRepository pregledRepo) {
+        this.zapisRepo = zapisRepo;
+        this.ljubimacRepo = ljubimacRepo;
+        this.korisnikRepo = korisnikRepo;
+        this.pregledRepo = pregledRepo;
+    }
+
+    // ========== POMOĆNI DTO-i samo za ovaj kontroler ==========
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record EligibleItem(Long pregledId, String ljubimacIme, String vlasnik,
+                               String terminOpis) {}
+    public record CreateRequest(Long pregledId, String ljubimacIme, String dijagnoza, String terapija) {}
+
+    // ========== LISTANJE ZAPISA (postojeće) ==========
+    @GetMapping({"", "/"})
+    public ResponseEntity<List<MedicinskiZapisDTO>> svi() {
+        var out = zapisRepo.findAll().stream().map(AppMapper::toDTO).toList();
+        return ResponseEntity.ok(out);
+    }
+
+    // ========== LISTA LJUBIMACA ZA KOJE VET MOŽE UNETI IZVEŠTAJ ==========
+    // Samo pregledi ZA ovog veterinara i samo oni koji su OBAVLJENI/ZAVRŠENI
+    @GetMapping("/moji-ljubimci-za-izvestaj")
+    public ResponseEntity<?> mojiLjubimciZaIzvestaj(Authentication auth) {
+        var vet = ulogovanVeterinar(auth);
+        if (vet == null) return ResponseEntity.status(401).body(Map.of("message", "Niste prijavljeni."));
+        if (vet.getUloga() != Uloga.VETERINAR)
+            return ResponseEntity.status(403).body(Map.of("message", "Samo veterinar može unositi medicinske zapise."));
+
+        var pregledi = pregledRepo.findByVeterinarId(vet.getId());
+        var fmt = DateTimeFormatter.ofPattern("dd.MM.yyyy. HH:mm");
+        List<EligibleItem> out = new ArrayList<>();
+
+        for (var p : pregledi) {
+            if (jeZavrsen(p)) {
+                var lj = p.getLjubimac();
+                String vlasnik = lj.getVlasnik() != null
+                        ? (safe(lj.getVlasnik().getIme()) + " " + safe(lj.getVlasnik().getPrezime())).trim()
+                        : "";
+                String termin = p.getTermin() != null ? fmt.format(p.getTermin()) : "";
+                out.add(new EligibleItem(p.getId(), lj.getIme(), vlasnik, termin));
+            }
+        }
+        // Sortiraj po terminu opadajuće ako ima datuma (frontu lakše)
+        out.sort(Comparator.comparing((EligibleItem e) -> e.terminOpis == null ? "" : e.terminOpis).reversed());
+        return ResponseEntity.ok(out);
+    }
+
+    // ========== KREIRANJE ZAPISA ==========
+    // PRIMA: pregledId (preporučeno) ILI ljubimacIme (fallback ako UI baš ne šalje ID)
+    @PostMapping({"", "/", "/dodaj", "/save"})
+    public ResponseEntity<?> dodaj(@RequestBody CreateRequest body, Authentication auth) {
+        var vet = ulogovanVeterinar(auth);
+        if (vet == null) return ResponseEntity.status(401).body(Map.of("message", "Niste prijavljeni."));
+        if (vet.getUloga() != Uloga.VETERINAR)
+            return ResponseEntity.status(403).body(Map.of("message", "Samo veterinar može unositi medicinske zapise."));
+
+        // Validacija obaveznih polja
+        if (body == null || empty(body.dijagnoza())) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Dijagnoza je obavezna."));
+        }
+
+        // Način 1 (preporučen): stiže pregledId iz padajuće liste (UI ne mora da prikazuje ID!)
+        Pregled pregled = null;
+        if (body.pregledId() != null) {
+            pregled = pregledRepo.findById(body.pregledId()).orElse(null);
+            if (pregled == null) {
+                return ResponseEntity.status(404).body(Map.of("message", "Pregled ne postoji."));
+            }
+            if (!Objects.equals(pregled.getVeterinar().getId(), vet.getId())) {
+                return ResponseEntity.status(403).body(Map.of("message", "Pregled nije dodeljen prijavljenom veterinaru."));
+            }
+            if (!jeZavrsen(pregled)) {
+                return ResponseEntity.status(400).body(Map.of("message", "Izveštaj se može uneti samo za OBAVLJEN pregled."));
+            }
+        }
+        // Način 2 (fallback): stiže samo ime ljubimca (može biti nejedinstveno!)
+        else if (!empty(body.ljubimacIme())) {
+            // uzmi NAJSKOROŠNJI obavljeni pregled tog ljubimca kod ovog veta
+            var pregledi = pregledRepo.findByVeterinarId(vet.getId());
+            pregledi.sort(Comparator.comparing(Pregled::getTermin, Comparator.nullsLast(Comparator.naturalOrder())).reversed());
+            for (var p : pregledi) {
+                if (jeZavrsen(p) && p.getLjubimac() != null && body.ljubimacIme().equalsIgnoreCase(p.getLjubimac().getIme())) {
+                    pregled = p; break;
+                }
+            }
+            if (pregled == null) {
+                return ResponseEntity.status(404).body(Map.of("message", "Nije pronađen OBAVLJEN pregled za dati ljubimac kod prijavljenog veterinara."));
+            }
+        } else {
+            return ResponseEntity.badRequest().body(Map.of("message", "Odaberite pregled ili ljubimca iz liste."));
+        }
+
+        // Kreiraj zapis
+        Ljubimac ljubimac = pregled.getLjubimac();
+        MedicinskiZapis zapis = new MedicinskiZapis();
+        zapis.setLjubimac(ljubimac);
+        zapis.setVeterinar(vet);
+        zapis.setDijagnoza(body.dijagnoza().trim());
+        zapis.setTerapija(empty(body.terapija()) ? null : body.terapija().trim());
+
+        var sacuvan = zapisRepo.save(zapis);
+        return ResponseEntity.status(201).body(toDTO(sacuvan));
+    }
+
+    // ===================== pomoćne =====================
+    private Korisnik ulogovanVeterinar(Authentication auth) {
+        if (auth == null || auth.getName() == null) return null;
+        return korisnikRepo.findByEmail(auth.getName()).orElse(null);
+    }
+    private static boolean empty(String s){ return s == null || s.isBlank(); }
+
+    // Prihvatamo i OBAVLJEN/ZAVRSEN/ZAVRŠEN – zavisi kako je enum imenovan u projektu
+    private static boolean jeZavrsen(Pregled p){
+        if (p == null || p.getStatus() == null) return false;
+        String s = p.getStatus().toString().toUpperCase(Locale.ROOT);
+        return s.equals("OBAVLJEN") || s.equals("ZAVRSEN") || s.equals("ZAVRŠEN");
+    }
+    private static String safe(String x){ return x == null ? "" : x; }
+}

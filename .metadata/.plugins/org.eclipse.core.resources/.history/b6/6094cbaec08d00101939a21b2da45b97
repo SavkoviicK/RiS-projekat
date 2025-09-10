@@ -1,0 +1,268 @@
+<%@ page contentType="text/html; charset=UTF-8" isELIgnored="true" %>
+<!DOCTYPE html>
+<html lang="sr">
+<head>
+  <meta charset="UTF-8">
+  <title>Prijatelji</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin:0; background:#f7f9fb; }
+    .wrap { max-width: 900px; margin: 24px auto; padding: 0 16px; }
+    table { width: 100%; border-collapse: collapse; background:#fff; border:1px solid #e6e6e6; }
+    th, td { padding: 10px; border-top: 1px solid #eee; text-align: left; }
+    thead tr { background: #f2f4f7; }
+    h1 { margin: 0 0 12px 0; }
+    h2 { margin: 24px 0 10px; }
+    .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+    select { padding:8px; border:1px solid #ccc; border-radius:6px; min-width:260px; }
+    .btn { padding: 6px 12px; border: none; border-radius: 6px; cursor: pointer; }
+    .btn-accept { background: #4CAF50; color: #fff; }
+    .btn-decline { background: #f44336; color: #fff; }
+    .btn-send { background: #0b5ed7; color:#fff; }
+    .muted { color:#666; font-size:.92em; }
+    .note { margin:6px 0 14px; }
+    .warn { color:#b33; font-weight:600; }
+  </style>
+  <script defer src="/js/auth.js"></script>
+</head>
+<body>
+<div class="wrap">
+  <h1>👥 Prijatelji</h1>
+
+  <div class="note muted">
+    Poruke su moguće samo između korisnika koji su prijatelji.
+  </div>
+
+  <form class="row" id="frmZahtev" onsubmit="return posaljiZahtev(event)">
+    <label><strong>Pošalji zahtev korisniku:</strong></label>
+    <select id="selVlasnik" required>
+      <option value="">— izaberi korisnika —</option>
+    </select>
+    <button class="btn btn-send" type="submit">Pošalji zahtev</button>
+    <span id="msgZahtev" class="muted"></span>
+  </form>
+
+  <h2>Zahtevi za prijateljstvo</h2>
+  <table>
+    <thead>
+      <tr><th>Od</th><th>Akcija</th></tr>
+    </thead>
+    <tbody id="tbodyZahtevi">
+      <tr><td colspan="2" class="muted">Učitavam…</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Moji prijatelji</h2>
+  <table>
+    <thead>
+      <tr><th>Ime i prezime</th><th>Email</th><th>Poruke</th></tr>
+    </thead>
+    <tbody id="tbodyPrijatelji">
+      <tr><td colspan="3" class="muted">Učitavam…</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<script>
+// --- Helpers ---
+function authHeader(){ const t=localStorage.getItem('jwt'); return t?{'Authorization':'Bearer '+t}:{ }; }
+async function whoAmI(){
+  try{
+    const res = await fetch('/api/whoami', { headers: authHeader() });
+    if(!res.ok) return { id:null, email:null };
+    const me = await res.json();
+    return {
+      id: me.id ?? me.userId ?? me.korisnikId ?? me.vlasnikId ?? me.veterinarId ?? null,
+      email: me.email ?? me.username ?? me.korisnikEmail ?? null
+    };
+  }catch(_){ return { id:null, email:null }; }
+}
+function openChatWith(id){
+  try{ localStorage.setItem('peerHintId', String(id)); }catch(_){}
+  window.location.href = '/poruke';
+}
+
+// --- Slanje zahteva ---
+async function posaljiZahtev(ev){
+  ev.preventDefault();
+  const sel = document.getElementById('selVlasnik');
+  const msg = document.getElementById('msgZahtev');
+  const id  = sel.value;
+  if(!id){ msg.textContent='Izaberi korisnika.'; return false; }
+  msg.textContent='Šaljem…';
+  try{
+    const res = await fetch('/api/prijatelji/zahtev?primaocId='+encodeURIComponent(id),
+                            { method:'POST', headers: authHeader() });
+    const txt = await res.text();
+    if(!res.ok) throw new Error(txt||('HTTP '+res.status));
+    msg.textContent='Poslato ✅';
+    await ucitajSve();
+    await popuniKorisnike();
+  }catch(e){
+    msg.innerHTML = '<span class="warn">Greška:</span> '+(e.message||'');
+  }
+  return false;
+}
+
+// --- Ucitavanje zahteva ---
+async function ucitajZahteve(){
+  const tbody = document.getElementById('tbodyZahtevi');
+  try{
+    const res = await fetch('/api/prijatelji/na-cekaju', { headers: authHeader() });
+    if(!res.ok) throw new Error(await res.text());
+    const list = await res.json();
+
+    tbody.innerHTML='';
+    if(!Array.isArray(list)||list.length===0){
+      tbody.innerHTML='<tr><td colspan="2">Nema novih zahteva</td></tr>';
+      return;
+    }
+    for (const z of list) {
+      // *** čitanje iz proširenog DTO-a ***
+     const ime    = (z.posiljalac && z.posiljalac.ime)       ?? z.posiljalacIme    ?? '';
+  	const prezime= (z.posiljalac && z.posiljalac.prezime)   ?? z.posiljalacPrezime?? '';
+  	const email  = (z.posiljalac && z.posiljalac.email)     ?? z.posiljalacEmail  ?? '';
+  	const idTxt  = (z.posiljalac && z.posiljalac.id != null)? String(z.posiljalac.id)
+                 : (z.posiljalacId != null ? String(z.posiljalacId) : '?');
+      const label =
+        (ime || prezime)
+          ? (ime + (prezime?(' '+prezime):''))
+          : (email || ('Korisnik #' + idPos));
+
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${label}</td>
+        <td>
+          <button class="btn btn-accept" onclick="return prihvatiOdbij(${z.id}, true)">Prihvati</button>
+          <button class="btn btn-decline" onclick="return prihvatiOdbij(${z.id}, false)">Odbij</button>
+        </td>`;
+      tbody.appendChild(tr);
+    }
+
+  }catch(e){
+    tbody.innerHTML='<tr><td colspan="2" class="muted">Greška pri učitavanju: '+(e.message||'')+'</td></tr>';
+  }
+}
+
+async function prihvatiOdbij(zahtevId, prihvati){
+  try{
+    const res = await fetch(`/api/prijatelji/odgovor?zahtevId=${zahtevId}&prihvati=${prihvati}`, {
+      method: 'POST',
+      headers: authHeader()
+    });
+    const text = await res.text();
+    if(!res.ok){
+      alert('Greška ('+res.status+'): ' + text);
+      return false;
+    }
+    alert(text || 'Zahtev je ažuriran.');
+    await ucitajSve();
+    await popuniKorisnike();
+  }catch(e){
+    alert('Greška (JS): ' + (e.message||''));
+  }
+  return false;
+}
+
+// --- Ucitavanje prijatelja ---
+async function ucitajPrijatelje(){
+  const tbody = document.getElementById('tbodyPrijatelji');
+  try{
+    const res = await fetch('/api/prijatelji', { headers: authHeader() });
+    if(!res.ok) throw new Error(await res.text());
+    const list = await res.json();
+
+    tbody.innerHTML='';
+    if(!Array.isArray(list)||list.length===0){
+      tbody.innerHTML='<tr><td colspan="3">Još nemaš prijatelja</td></tr>';
+      return;
+    }
+    for(const f of list){
+      const ime = f.ime || '';
+      const prez = f.prezime || '';
+      const full = (ime?ime:'') + (prez?(' '+prez):'');
+      const email = f.email || '';
+      const id = f.id ?? f.korisnikId ?? f.userId;
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${full||'-'}</td>
+        <td>${email}</td>
+        <td><button class="btn btn-send" onclick="openChatWith(${id})">Otvori chat</button></td>`;
+      tbody.appendChild(tr);
+    }
+  }catch(e){
+    tbody.innerHTML='<tr><td colspan="3" class="muted">Greška pri učitavanju: '+(e.message||'')+'</td></tr>';
+  }
+}
+
+// --- Dropdown kandidata za zahtev ---
+async function popuniKorisnike(){
+  const sel = document.getElementById('selVlasnik');
+  if(!sel) return;
+
+  const me = await whoAmI();
+
+  const [prijRes, pendRes, allRes] = await Promise.all([
+    fetch('/api/prijatelji', { headers: authHeader() }),
+    fetch('/api/prijatelji/na-cekaju', { headers: authHeader() }),
+    fetch('/api/korisnici', { headers: authHeader() })
+  ]);
+
+  const prijatelji = prijRes.ok ? await prijRes.json() : [];
+  const pendinzi   = pendRes.ok ? await pendRes.json() : [];
+  const svi        = allRes.ok  ? await allRes.json()  : [];
+
+  const prijateljIds = new Set((Array.isArray(prijatelji)?prijatelji:[]).map(f => f.id ?? f.korisnikId ?? f.userId));
+  const pendingIds = new Set();
+  for (const z of (Array.isArray(pendinzi)?pendinzi:[])) {
+    // *** iz DTO-a: posiljalacId ***
+    if (z.posiljalacId != null) pendingIds.add(z.posiljalacId);
+  }
+
+  const kandidati = (Array.isArray(svi)?svi:[])
+    .map(u => ({
+      id: u.id ?? u.userId ?? u.korisnikId ?? u.vlasnikId ?? u.veterinarId,
+      ime: u.ime || '',
+      prezime: u.prezime || '',
+      email: u.email || u.username || ''
+    }))
+    .filter(u =>
+      u.id &&
+      !(me.id && u.id === me.id) &&
+      !(me.email && u.email && u.email.toLowerCase() === String(me.email).toLowerCase()) &&
+      !prijateljIds.has(u.id) &&
+      !pendingIds.has(u.id)
+    )
+    .sort((a,b)=> (a.ime+a.prezime+a.email).localeCompare(b.ime+b.prezime+b.email));
+
+  sel.innerHTML = '<option value="">— izaberi korisnika —</option>';
+  if(!kandidati.length){
+    const opt = document.createElement('option');
+    opt.value=''; opt.textContent='Nema dostupnih (svi su već prijatelji ili pending)';
+    sel.appendChild(opt);
+    sel.disabled=true;
+    return;
+  }
+  sel.disabled=false;
+  for(const k of kandidati){
+    const opt = document.createElement('option');
+    const full = (k.ime?k.ime:'') + (k.prezime?(' '+k.prezime):'');
+    opt.value = String(k.id);
+    opt.textContent = (full ? (full+' – ') : '') + k.email + ' (#'+k.id+')';
+    sel.appendChild(opt);
+  }
+}
+
+async function ucitajSve(){ await Promise.all([ ucitajZahteve(), ucitajPrijatelje() ]); }
+
+window.addEventListener('load', async ()=>{
+  if(!localStorage.getItem('jwt')){
+    document.getElementById('tbodyZahtevi').innerHTML='<tr><td colspan="2">Prijavite se.</td></tr>';
+    document.getElementById('tbodyPrijatelji').innerHTML='<tr><td colspan="3">Prijavite se.</td></tr>';
+    return;
+  }
+  await ucitajSve();
+  await popuniKorisnike();
+});
+</script>
+</body>
+</html>

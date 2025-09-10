@@ -1,0 +1,20 @@
+# PORT
+server.port=8081
+
+# MySQL konekcija
+spring.datasource.url=jdbc:mysql://localhost:3306/veterinarska_stanica?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+spring.datasource.username=root
+spring.datasource.password=NovaJakaLozinka!123
+
+# JPA
+spring.jpa.hibernate.ddl-auto=update
+spring.jpa.show-sql=true
+spring.jpa.properties.hibernate.format_sql=true
+
+# MAIL konfiguracija
+spring.mail.host=smtp.gmail.com
+spring.mail.port=587
+spring.mail.username=TVOJ_EMAIL@gmail.com
+spring.mail.password=APP_PASSWORD
+spring.mail.properties.mail.smtp.auth=true
+spring.mail.properties.mail.smtp.starttls.enable=true

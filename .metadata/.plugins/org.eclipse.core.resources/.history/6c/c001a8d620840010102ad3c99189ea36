@@ -1,0 +1,29 @@
+package com.veterinarska.stanica.mapper;
+
+import com.veterinarska.stanica.dto.*;
+import com.veterinarska.stanica.model.*;
+//import com.veterinarska.stanica.dto.UslugaDTO;
+//import com.veterinarska.stanica.model.Usluga;
+
+public class AppMapper {
+
+    public static KorisnikDTO toDTO(Korisnik k) {
+        if (k == null) return null;
+        return new KorisnikDTO(k.getId(), k.getEmail(), k.getIme(), k.getPrezime(), k.getUloga());
+    }
+
+    public static LjubimacDTO toDTO(Ljubimac l) {
+        if (l == null) return null;
+        var vlasnik = l.getVlasnik();
+        Long vlasnikId = vlasnik != null ? vlasnik.getId() : null;
+        String vlasnikEmail = vlasnik != null ? vlasnik.getEmail() : null;
+        return new LjubimacDTO(l.getId(), l.getIme(), l.getVrsta(), l.getRasa(), l.getPol(),
+                               vlasnikId, vlasnikEmail);
+    }
+    
+    public static UslugaDTO toDTO(Usluga u) {
+        if (u == null) return null;
+        return new UslugaDTO(u.getId(), u.getNaziv(), u.getOpis());
+    }
+
+}

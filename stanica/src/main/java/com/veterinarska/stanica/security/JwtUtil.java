@@ -1,0 +1,53 @@
+package com.veterinarska.stanica.security;
+
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.security.Keys;
+import java.nio.charset.StandardCharsets;
+import java.util.Date;
+import io.jsonwebtoken.Claims;
+import org.springframework.stereotype.Component;
+import org.springframework.beans.factory.annotation.Value;
+
+@Component
+public class JwtUtil {
+    private final byte[] key;
+    private final long expiration;
+
+    public JwtUtil(@Value("${jwt.secret}")String secret,
+    			   @Value("${jwt.expiration}") long expiration) {
+        this.key = secret.getBytes(StandardCharsets.UTF_8);
+        this.expiration = expiration;
+    }
+
+    public String generateToken(String subject) {
+        Date now = new Date();
+        Date exp = new Date(now.getTime() + expiration);
+        return Jwts.builder()
+                .subject(subject)
+                .issuedAt(now)
+                .expiration(exp)
+                .signWith(Keys.hmacShaKeyFor(key))
+                .compact();
+    }
+    
+    public String extractUsername(String token) {
+        return parseClaims(token).getSubject();
+    }
+
+    public boolean isValid(String token) {
+        try {
+            Claims c = parseClaims(token);
+            return c.getExpiration().after(new Date());
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private Claims parseClaims(String token) {
+        return Jwts.parser()
+                .verifyWith(Keys.hmacShaKeyFor(key))
+                .build()
+                .parseSignedClaims(token)
+                .getPayload();
+    }
+}

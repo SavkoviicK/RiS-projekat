@@ -1,0 +1,127 @@
+package com.veterinarska.stanica.controller;
+
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.web.bind.annotation.*;
+
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
+import java.util.regex.Pattern;
+
+import com.veterinarska.stanica.model.Korisnik;
+import com.veterinarska.stanica.model.Uloga;
+import com.veterinarska.stanica.repository.KorisnikRepository;
+import com.veterinarska.stanica.security.JwtUtil;
+
+@RestController
+@RequestMapping("/api/auth")
+public class AuthController {
+
+    private final KorisnikRepository repo;
+    private final PasswordEncoder encoder;
+    private final JwtUtil jwt;
+
+    // vrlo jednostavna provera email-a (dovoljno za brzinu i bez novih dependencija)
+    private static final Pattern EMAIL_RX = Pattern.compile("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$");
+
+    public AuthController(KorisnikRepository repo, PasswordEncoder encoder, JwtUtil jwt) {
+        this.repo = repo;
+        this.encoder = encoder;
+        this.jwt = jwt;
+    }
+
+    public static record LoginRequest(String email, String lozinka) {}
+    public static record LoginResponse(String token) {}
+
+    @PostMapping("/login")
+    public ResponseEntity<?> login(@RequestBody LoginRequest req) {
+        var kOpt = repo.findByEmail(req.email());
+        if (kOpt.isEmpty() || !encoder.matches(req.lozinka(), kOpt.get().getLozinka())) {
+            return ResponseEntity.status(401).body(Map.of("message","Neispravan email ili lozinka"));
+        }
+        String token = jwt.generateToken(kOpt.get().getEmail());
+        return ResponseEntity.ok(new LoginResponse(token));
+    }
+
+    @GetMapping("/whoami")
+    public Map<String, Object> whoami(Authentication auth) {
+        if (auth == null || auth.getName() == null) {
+            return Map.of("authorities", List.of());
+        }
+        var kOpt = repo.findByEmail(auth.getName());
+        if (kOpt.isEmpty()) {
+            return Map.of("authorities", List.of());
+        }
+        String role = "ROLE_" + kOpt.get().getUloga().name();
+        return Map.of("authorities", List.of(Map.of("authority", role)));
+    }
+
+    public static record RegistracijaRequest(String ime, String prezime, String email, String lozinka, String uloga) {}
+
+    @PostMapping("/registracija")
+    public ResponseEntity<?> registracija(@RequestBody RegistracijaRequest req) {
+        // --- Ručna validacija (bez @Valid i novih dependencija) ---
+        if (req == null) {
+            return ResponseEntity.badRequest().body(Map.of("message","Neispravan zahtev"));
+        }
+        if (isBlank(req.ime())) {
+            return ResponseEntity.badRequest().body(Map.of("message","Ime je obavezno"));
+        }
+        if (isBlank(req.prezime())) {
+            return ResponseEntity.badRequest().body(Map.of("message","Prezime je obavezno"));
+        }
+        if (isBlank(req.email())) {
+            return ResponseEntity.badRequest().body(Map.of("message","Email je obavezan"));
+        }
+        if (!EMAIL_RX.matcher(req.email()).matches()) {
+            return ResponseEntity.badRequest().body(Map.of("message","Email nije ispravan"));
+        }
+        if (isBlank(req.lozinka())) {
+            return ResponseEntity.badRequest().body(Map.of("message","Lozinka je obavezna"));
+        }
+        if (req.lozinka().length() < 8) {
+            return ResponseEntity.badRequest().body(Map.of("message","Lozinka mora imati bar 8 karaktera"));
+        }
+
+        // već postoji?
+        if (repo.findByEmail(req.email()).isPresent()) {
+            return ResponseEntity.status(409).body(Map.of("message", "Email je zauzet"));
+        }
+
+        Korisnik k = new Korisnik();
+        k.setIme(req.ime());
+        k.setPrezime(req.prezime());
+        k.setEmail(req.email());
+        // ovde više neće pući jer smo proverili da lozinka nije null/prazna
+        k.setLozinka(encoder.encode(req.lozinka()));
+
+        Uloga u;
+        try {
+            u = (req.uloga() != null && !req.uloga().isBlank())
+                    ? Uloga.valueOf(req.uloga().toUpperCase())
+                    : Uloga.VLASNIK;
+        } catch (IllegalArgumentException e) {
+            u = Uloga.VLASNIK;
+        }
+        k.setUloga(u);
+        k.setAktivan(true);
+        k.setDatumKreiranja(LocalDateTime.now());
+
+        try {
+            repo.save(k);
+        } catch (DataIntegrityViolationException ex) {
+            // npr. unique constraint na email (trka sa paralelnim zahtevom)
+            return ResponseEntity.status(409).body(Map.of("message","Email je zauzet"));
+        }
+
+        return ResponseEntity.status(201).body(Map.of("id", k.getId(), "uloga", k.getUloga().name()));
+    }
+
+    // helper
+    private static boolean isBlank(String s) {
+        return s == null || s.trim().isEmpty();
+    }
+}

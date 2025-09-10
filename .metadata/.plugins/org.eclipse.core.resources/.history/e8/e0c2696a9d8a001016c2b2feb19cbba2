@@ -1,0 +1,52 @@
+package com.veterinarska.stanica.controller;
+
+import com.veterinarska.stanica.model.FriendRequest;
+import com.veterinarska.stanica.model.Korisnik;
+import com.veterinarska.stanica.service.FriendRequestService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/friends")
+@CrossOrigin(origins = "http://localhost:8081") // prilagodi ako frontend nije na 5173
+public class FriendRequestController {
+
+    @Autowired
+    private FriendRequestService friendRequestService;
+
+    // slanje zahteva
+    @PreAuthorize("hasRole('USER') or hasRole('VLASNIK')")
+    @PostMapping("/request")
+    public ResponseEntity<String> sendFriendRequest(@RequestParam Long senderId,
+                                                    @RequestParam Long receiverId) {
+        friendRequestService.sendFriendRequest(senderId, receiverId);
+        return ResponseEntity.ok("Zahtev za prijateljstvo je poslat.");
+    }
+
+    // odgovor na zahtev (prihvatanje / odbijanje)
+    @PreAuthorize("hasRole('USER') or hasRole('VLASNIK')")
+    @PostMapping("/respond")
+    public ResponseEntity<String> respondToRequest(@RequestParam Long requestId,
+                                                   @RequestParam boolean accepted) {
+        friendRequestService.respondToFriendRequest(requestId, accepted);
+        return ResponseEntity.ok("Zahtev za prijateljstvo je ažuriran.");
+    }
+
+    // pending zahtevi koji su stigli korisniku
+    @PreAuthorize("hasRole('USER') or hasRole('VLASNIK')")
+    @GetMapping("/pending")
+    public List<FriendRequest> getPendingRequests(@RequestParam Long userId) {
+        return friendRequestService.getPendingRequests(userId);
+    }
+
+    // lista svih prijatelja
+    @PreAuthorize("hasRole('USER') or hasRole('VLASNIK')")
+    @GetMapping
+    public List<Korisnik> getFriends(@RequestParam Long userId) {
+        return friendRequestService.getFriends(userId);
+    }
+}

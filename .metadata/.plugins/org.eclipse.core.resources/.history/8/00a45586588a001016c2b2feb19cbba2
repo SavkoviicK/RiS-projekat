@@ -1,0 +1,114 @@
+<%@ page contentType="text/html; charset=UTF-8" isELIgnored="true" %>
+<%@ taglib uri="http://java.sun.com/jsp/jstl/core" prefix="c" %>
+
+<header>
+  <div style="display:flex;align-items:center;gap:12px">
+    <img src="/img/logo.png" alt="Logo" style="height:46px">
+    <strong>Veterinarska stanica</strong>
+  </div>
+  <nav>
+    <a href="/">Početna</a>
+    <a href="/ljubimci">Ljubimci</a>
+    <a href="/pregledi">Pregledi</a>
+    <a href="/poruke">Poruke</a>
+    <a id="navIzvestaji" href="/izvestaji" style="display:none">Izveštaji</a>
+  </nav>
+  <div id="userBox"><span id="userInfo"></span>
+    <button id="btnLogout" style="display:none;margin-left:8px">Odjava</button>
+  </div>
+</header>
+
+<div class="wrap">
+  <h1>📅 Pregledi</h1>
+  <div id="msg" class="muted" style="margin:8px 0 16px 0"></div>
+
+  <div id="privPregledi" style="display:none">
+
+    <!-- VLASNIK: dropdown umesto ID -->
+    <div id="ownerPanel" class="card" style="display:none">
+      <h3>➕ Novi pregled (VLASNIK)</h3>
+      <div class="row">
+        <label>Ljubimac
+          <select id="npLjubimac"></select>
+        </label>
+        <label>Veterinar
+          <select id="npVeterinar"></select>
+        </label>
+        <label>Usluga
+          <select id="npUsluga"></select>
+        </label>
+        <label>Početak <input id="npStart" type="datetime-local"></label>
+        <label>Kraj <input id="npEnd" type="datetime-local"></label>
+        <input id="npNapomena" placeholder="Napomena" style="min-width:240px">
+        <button id="btnAdd">Sačuvaj</button>
+        <span id="addMsg" class="muted"></span>
+      </div>
+
+      <h4>✏️ Izmeni termin (VLASNIK)</h4>
+      <div class="row">
+        <label>Pregled ID <input id="edId" type="number" style="width:100px"></label>
+        <label>Usluga
+          <select id="edUsluga"></select>
+        </label>
+        <label>Početak <input id="edStart" type="datetime-local"></label>
+        <label>Kraj <input id="edEnd" type="datetime-local"></label>
+        <input id="edNapomena" placeholder="Napomena" style="min-width:200px">
+        <button id="btnEdit">Izmeni</button>
+        <span id="editMsg" class="muted"></span>
+      </div>
+
+      <h4>🗑 Otkazivanje (VLASNIK)</h4>
+      <div class="row">
+        <label>Pregled ID <input id="delId" type="number" style="width:100px"></label>
+        <button id="btnDel" class="danger">Otkaži</button>
+        <span id="delMsg" class="muted"></span>
+      </div>
+    </div>
+
+    <!-- VETERINAR -->
+    <div id="vetPanel" class="card" style="display:none">
+      <h3>✅ Promeni status (VETERINAR)</h3>
+      <div class="row">
+        <label>Pregled ID <input id="stId" type="number" style="width:100px"></label>
+        <select id="stVal">
+          <option>ZAKAZAN</option>
+          <option>POTVRĐEN</option>
+          <option>OBAVLJEN</option>
+          <option>OTKAZAN</option>
+        </select>
+        <button id="btnStatus">Primeni</button>
+        <span id="stMsg" class="muted"></span>
+      </div>
+    </div>
+
+    <table id="tbl">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Ljubimac</th>
+          <th>Veterinar</th>
+          <th>Usluga</th>
+          <th>Početak</th>
+          <th>Kraj</th>
+          <th>Status</th>
+          <th>Napomena</th>
+        </tr>
+      </thead>
+      <tbody id="rows">
+        <tr><td colspan="8">Učitavam…</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script src="/js/auth.js"></script>
+<script>
+  // sakrivanje/pokazivanje panela
+  (function(){
+    try{
+      const roles = (JSON.parse(localStorage.getItem('roles')||'[]')||[]).map(r=>r.authority||'');
+      document.getElementById('ownerPanel').style.display = roles.includes('ROLE_VLASNIK') ? 'block' : 'none';
+      document.getElementById('vetPanel').style.display   = roles.includes('ROLE_VETERINAR') ? 'block' : 'none';
+    }catch(e){}
+  })();
+</script>

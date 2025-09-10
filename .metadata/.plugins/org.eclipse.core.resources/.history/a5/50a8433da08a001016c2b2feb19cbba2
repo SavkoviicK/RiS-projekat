@@ -1,0 +1,66 @@
+package com.veterinarska.stanica.controller;
+
+import com.veterinarska.stanica.model.Korisnik;
+import com.veterinarska.stanica.model.Message;
+import com.veterinarska.stanica.repository.KorisnikRepository;
+import com.veterinarska.stanica.service.FriendRequestService;
+import com.veterinarska.stanica.service.MessageService;
+import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@Controller
+public class ChatPageController {
+
+    private final KorisnikRepository korisnikRepo;
+    private final FriendRequestService friendRequestService;
+    private final MessageService messageService;
+
+    public ChatPageController(KorisnikRepository korisnikRepo,
+                              FriendRequestService friendRequestService,
+                              MessageService messageService) {
+        this.korisnikRepo = korisnikRepo;
+        this.friendRequestService = friendRequestService;
+        this.messageService = messageService;
+    }
+
+    @GetMapping("/chat")
+    public String chatPage(@RequestParam Long userId,
+                           @RequestParam(required = false) Long friendId,
+                           Model model) {
+        Korisnik currentUser = korisnikRepo.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("Korisnik ne postoji"));
+
+        List<Korisnik> friends = friendRequestService.getFriends(userId);
+
+        model.addAttribute("currentUser", currentUser);
+        model.addAttribute("friends", friends);
+
+        if (friendId != null) {
+            Korisnik activeFriend = korisnikRepo.findById(friendId)
+                    .orElseThrow(() -> new IllegalArgumentException("Prijatelj ne postoji"));
+            List<Message> messages = messageService.getMessagesBetweenUsers(userId, friendId);
+
+            model.addAttribute("activeFriend", activeFriend);
+            model.addAttribute("messages", messages);
+        }
+
+        return "chat"; // chat.jsp
+    }
+
+    @PostMapping("/chat/send")
+    public String sendMessage(@RequestParam Long userId,
+                              @RequestParam Long friendId,
+                              @RequestParam String content) {
+        var dto = new com.veterinarska.stanica.dto.MessageDto();
+        dto.setSenderId(userId);
+        dto.setReceiverId(friendId);
+        dto.setContent(content);
+
+        messageService.sendMessage(dto);
+
+        return "redirect:/chat?userId=" + userId + "&friendId=" + friendId;
+    }
+}

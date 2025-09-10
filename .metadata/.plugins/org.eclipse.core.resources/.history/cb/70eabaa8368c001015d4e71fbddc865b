@@ -1,0 +1,194 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE jasperReport PUBLIC "-//JasperReports//DTD Report Design//EN"
+        "http://jasperreports.sourceforge.net/dtds/jasperreport.dtd">
+<jasperReport xmlns="http://jasperreports.sourceforge.net/jasperreports"
+              xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+              xsi:schemaLocation="http://jasperreports.sourceforge.net/jasperreports
+              http://jasperreports.sourceforge.net/xsd/jasperreport.xsd"
+              name="KartonMedicinskiIzvestaj"
+              pageWidth="595" pageHeight="842" columnWidth="555"
+              leftMargin="20" rightMargin="20" topMargin="20" bottomMargin="20">
+
+    <parameter name="ZAPIS_ID" class="java.lang.Long"/>
+    <parameter name="P_NAZIV_KLINIKE" class="java.lang.String"/>
+    <parameter name="P_ADRESA" class="java.lang.String"/>
+    <parameter name="P_TELEFON" class="java.lang.String"/>
+
+    <queryString>
+        <![CDATA[
+SELECT
+  mz.id                         AS izvestajId,
+  mz.datum                      AS datum,
+  mz.dijagnoza                  AS dijagnoza,
+  mz.terapija                   AS terapija,
+
+  v.ime                         AS veterinarIme,
+  v.prezime                     AS veterinarPrezime,
+
+  l.ime                         AS ljubimacIme,
+  l.vrsta                       AS ljubimacVrsta,
+  l.rasa                        AS ljubimacRasa,
+  l.pol                         AS ljubimacPol,
+  l.starost                     AS ljubimacStarost,
+
+  vlas.ime                      AS vlasnikIme,
+  vlas.prezime                  AS vlasnikPrezime,
+  vlas.email                    AS vlasnikEmail
+FROM medicinski_zapisi mz
+JOIN ljubimci l        ON l.id = mz.ljubimac_id
+JOIN korisnici v       ON v.id = mz.veterinar_id
+LEFT JOIN korisnici vlas ON vlas.id = l.vlasnik_id
+WHERE mz.id = $P{ZAPIS_ID}
+        ]]>
+    </queryString>
+
+    <field name="izvestajId" class="java.lang.Long"/>
+    <field name="datum" class="java.sql.Date"/>
+    <field name="dijagnoza" class="java.lang.String"/>
+    <field name="terapija" class="java.lang.String"/>
+    <field name="veterinarIme" class="java.lang.String"/>
+    <field name="veterinarPrezime" class="java.lang.String"/>
+    <field name="ljubimacIme" class="java.lang.String"/>
+    <field name="ljubimacVrsta" class="java.lang.String"/>
+    <field name="ljubimacRasa" class="java.lang.String"/>
+    <field name="ljubimacPol" class="java.lang.String"/>
+    <field name="ljubimacStarost" class="java.lang.String"/>
+    <field name="vlasnikIme" class="java.lang.String"/>
+    <field name="vlasnikPrezime" class="java.lang.String"/>
+    <field name="vlasnikEmail" class="java.lang.String"/>
+
+    <title>
+        <band height="70">
+            <staticText>
+                <reportElement x="0" y="0" width="555" height="24"/>
+               
+                <text><![CDATA[MEDICINSKI IZVEŠTAJ]]></text>
+            </staticText>
+            <textField>
+                <reportElement x="0" y="28" width="555" height="16"/>
+                
+                <textFieldExpression><![CDATA[
+$P{P_NAZIV_KLINIKE} == null ? "Veterinarska stanica" : $P{P_NAZIV_KLINIKE}
+                ]]></textFieldExpression>
+            </textField>
+            <textField>
+                <reportElement x="0" y="46" width="555" height="16"/>
+               
+                <textFieldExpression><![CDATA[
+($P{P_ADRESA} == null ? "" : $P{P_ADRESA}) +
+($P{P_TELEFON} == null ? "" : " | Tel: " + $P{P_TELEFON})
+                ]]></textFieldExpression>
+            </textField>
+        </band>
+    </title>
+
+    <columnHeader>
+        <band height="1"/>
+    </columnHeader>
+
+    <detail>
+        <band height="210">
+            <staticText>
+                <reportElement x="0" y="0" width="180" height="18"/>
+                <text><![CDATA[ID izveštaja]]></text>
+            </staticText>
+            <textField>
+                <reportElement x="190" y="0" width="365" height="18"/>
+                <textFieldExpression><![CDATA[$F{izvestajId}]]></textFieldExpression>
+            </textField>
+
+            <staticText>
+                <reportElement x="0" y="22" width="180" height="18"/>
+                <text><![CDATA[Datum]]></text>
+            </staticText>
+            <textField pattern="dd.MM.yyyy.">
+                <reportElement x="190" y="22" width="365" height="18"/>
+                <textFieldExpression><![CDATA[$F{datum}]]></textFieldExpression>
+            </textField>
+
+            <staticText>
+                <reportElement x="0" y="54" width="180" height="18"/>
+                <text><![CDATA[Ljubimac]]></text>
+            </staticText>
+            <textField>
+                <reportElement x="190" y="54" width="365" height="18"/>
+                <textFieldExpression><![CDATA[
+$F{ljubimacIme}
++ (
+  $F{ljubimacVrsta} != null && !$F{ljubimacVrsta}.isEmpty()
+    ? " (" + $F{ljubimacVrsta} + ")"
+    : ""
+  )
+                ]]></textFieldExpression>
+            </textField>
+
+            <staticText>
+                <reportElement x="0" y="76" width="180" height="18"/>
+                <textElement><font fontName="DejaVu Sans" pdfFontName="DejaVuSans.ttf" isPdfEmbedded="true"/></textElement>
+                <text><![CDATA[Vrsta / Rasa / Pol / Starost]]></text>
+            </staticText>
+            <textField>
+                <reportElement x="190" y="76" width="365" height="18"/>
+                <textFieldExpression><![CDATA[
+$F{ljubimacVrsta} + " / " + $F{ljubimacRasa} + " / " + $F{ljubimacPol} + " / " + $F{ljubimacStarost}
+                ]]></textFieldExpression>
+            </textField>
+
+            <staticText>
+                <reportElement x="0" y="106" width="180" height="18"/>
+                <textElement><font fontName="DejaVu Sans" pdfFontName="DejaVuSans.ttf" isPdfEmbedded="true"/></textElement>
+                <text><![CDATA[Vlasnik]]></text>
+            </staticText>
+            <textField>
+                <reportElement x="190" y="106" width="365" height="18"/>
+                <textElement><font fontName="DejaVu Sans" pdfFontName="DejaVuSans.ttf" isPdfEmbedded="true"/></textElement>
+                <textFieldExpression><![CDATA[$F{vlasnikIme} + " " + $F{vlasnikPrezime}]]></textFieldExpression>
+            </textField>
+
+            <staticText>
+                <reportElement x="0" y="128" width="180" height="18"/>
+                <textElement><font fontName="DejaVu Sans" pdfFontName="DejaVuSans.ttf" isPdfEmbedded="true"/></textElement>
+                <text><![CDATA[Email vlasnika]]></text>
+            </staticText>
+            <textField>
+                <reportElement x="190" y="128" width="365" height="18"/>
+                <textElement><font fontName="DejaVu Sans" pdfFontName="DejaVuSans.ttf" isPdfEmbedded="true"/></textElement>
+                <textFieldExpression><![CDATA[$F{vlasnikEmail}]]></textFieldExpression>
+            </textField>
+
+            <staticText>
+                <reportElement x="0" y="158" width="180" height="18"/>
+                <textElement><font fontName="DejaVu Sans" pdfFontName="DejaVuSans.ttf" isPdfEmbedded="true"/></textElement>
+                <text><![CDATA[Dijagnoza]]></text>
+            </staticText>
+            <textField isStretchWithOverflow="true">
+                <reportElement x="190" y="158" width="365" height="18"/>
+                <textElement><font fontName="DejaVu Sans" pdfFontName="DejaVuSans.ttf" isPdfEmbedded="true"/></textElement>
+                <textFieldExpression><![CDATA[$F{dijagnoza}]]></textFieldExpression>
+            </textField>
+
+            <staticText>
+                <reportElement x="0" y="180" width="180" height="18"/>
+                <textElement><font fontName="DejaVu Sans" pdfFontName="DejaVuSans.ttf" isPdfEmbedded="true"/></textElement>
+                <text><![CDATA[Terapija]]></text>
+            </staticText>
+            <textField isStretchWithOverflow="true">
+                <reportElement x="190" y="180" width="365" height="18"/>
+                <textElement><font fontName="DejaVu Sans" pdfFontName="DejaVuSans.ttf" isPdfEmbedded="true"/></textElement>
+                <textFieldExpression><![CDATA[$F{terapija}]]></textFieldExpression>
+            </textField>
+        </band>
+    </detail>
+
+    <pageFooter>
+        <band height="20">
+            <staticText>
+                <reportElement x="0" y="2" width="555" height="16"/>
+                <textElement>
+                    <font fontName="DejaVu Sans" pdfFontName="DejaVuSans.ttf" isPdfEmbedded="true"/>
+                </textElement>
+                <text><![CDATA[Hvala na poverenju.]]></text>
+            </staticText>
+        </band>
+    </pageFooter>
+</jasperReport>

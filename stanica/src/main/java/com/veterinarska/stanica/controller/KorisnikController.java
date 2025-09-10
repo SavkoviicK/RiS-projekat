@@ -1,0 +1,54 @@
+package com.veterinarska.stanica.controller;
+
+import com.veterinarska.stanica.dto.KorisnikDTO;
+import com.veterinarska.stanica.mapper.AppMapper;
+import com.veterinarska.stanica.model.Korisnik;
+import com.veterinarska.stanica.model.Uloga;
+import com.veterinarska.stanica.repository.KorisnikRepository;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/korisnici")
+public class KorisnikController {
+
+    private final KorisnikRepository korisnikRepo;
+
+    public KorisnikController(KorisnikRepository korisnikRepo) {
+        this.korisnikRepo = korisnikRepo;
+    }
+
+    /**
+     * Lista svih korisnika ili filtrirano po roli (?rola=ADMIN|VETERINAR|VLASNIK)
+     */
+    @GetMapping
+    public ResponseEntity<?> svi(@RequestParam(value = "rola", required = false) String rola,
+                                 Authentication auth) {
+        if (auth == null || auth.getName() == null) {
+            return ResponseEntity.status(401).body("Niste prijavljeni.");
+        }
+        List<Korisnik> korisnici;
+        if (rola != null && !rola.isBlank()) {
+            Uloga u = Uloga.valueOf(rola.trim().toUpperCase());
+            korisnici = korisnikRepo.findByUloga(u);
+        } else {
+            korisnici = korisnikRepo.findAll();
+        }
+        List<KorisnikDTO> out = korisnici.stream().map(AppMapper::toDTO).toList();
+        return ResponseEntity.ok(out);
+    }
+
+    
+    @GetMapping("/veterinari")
+    public ResponseEntity<?> veterinari(Authentication auth) {
+        if (auth == null || auth.getName() == null) {
+            return ResponseEntity.status(401).body("Niste prijavljeni.");
+        }
+        List<Korisnik> vetovi = korisnikRepo.findByUloga(Uloga.VETERINAR);
+        List<KorisnikDTO> out = vetovi.stream().map(AppMapper::toDTO).toList();
+        return ResponseEntity.ok(out);
+    }
+}

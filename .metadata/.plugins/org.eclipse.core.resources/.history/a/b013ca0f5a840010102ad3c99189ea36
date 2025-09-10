@@ -1,0 +1,73 @@
+package com.veterinarska.stanica.config;
+
+import com.veterinarska.stanica.security.JwtAuthFilter;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+
+@Configuration
+public class SecurityConfig {
+
+    @Value("${jwt.secret}")     private String jwtSecret;      // (ako ti ne treba, možeš obrisati)
+    @Value("${jwt.expiration}") private long jwtExpiration;    // (ako ti ne treba, možeš obrisati)
+
+    private final JwtAuthFilter jwtAuthFilter;
+
+    public SecurityConfig(JwtAuthFilter jwtAuthFilter) {
+        this.jwtAuthFilter = jwtAuthFilter;
+    }
+
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
+
+    @Bean
+    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+        http
+            .csrf(csrf -> csrf.disable())
+            .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .authorizeHttpRequests(auth -> auth
+                // PUBLIC
+                .requestMatchers("/api/ping").permitAll()
+                .requestMatchers("/api/auth/**").permitAll()
+                .requestMatchers("/api/korisnici/registracija").permitAll()
+                .requestMatchers("/v3/api-docs/**", "/swagger-ui.html", "/swagger-ui/**").permitAll()
+                .requestMatchers("/api/whoami").permitAll()
+
+                // USLUGE — samo ADMIN
+                .requestMatchers("/api/usluge", "/api/usluge/**").hasRole("ADMIN")
+
+                // PREGLEDI — PRVO specifične HTTP metode, BEZ opšteg matchera koji hvata sve
+                .requestMatchers(HttpMethod.PATCH,  "/api/pregledi/**").hasRole("VETERINAR")
+                .requestMatchers(HttpMethod.POST,   "/api/pregledi/**").hasRole("VLASNIK")
+                .requestMatchers(HttpMethod.PUT,    "/api/pregledi/**").hasRole("VLASNIK")
+                .requestMatchers(HttpMethod.DELETE, "/api/pregledi/**").hasRole("VLASNIK")
+                .requestMatchers(HttpMethod.GET,    "/api/pregledi/**")
+                    .hasAnyRole("VLASNIK","VETERINAR","ADMIN")
+
+                // LJUBIMCI — vlasnik
+                .requestMatchers("/api/ljubimci/**").hasRole("VLASNIK")
+                .requestMatchers(HttpMethod.POST, "/api/medicinski-zapisi", "/api/medicinski-zapisi/**").hasRole("VETERINAR")
+                .requestMatchers("/api/medicinski-zapisi/**").hasRole("VETERINAR")
+                // MEDICINSKI ZAPISI — veterinar
+                .requestMatchers("/api/medicinski-zapisi/**").hasRole("VETERINAR")
+
+                // IZVEŠTAJI — admin
+                .requestMatchers("/api/izvestaji/**").hasRole("ADMIN")
+
+                // OSTALO — zahteva autentifikaciju
+                .anyRequest().authenticated()
+            )
+            .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+
+        return http.build();
+    }
+}

@@ -1,0 +1,48 @@
+package com.veterinarska.stanica.model;
+
+import jakarta.persistence.*;
+import java.time.LocalDate;
+
+@Entity
+@Table(name = "medicinski_zapisi")
+public class MedicinskiZapis {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @ManyToOne(optional = false)
+    @JoinColumn(name = "ljubimac_id", nullable = false)
+    private Ljubimac ljubimac;
+
+    @ManyToOne(optional = false)
+    @JoinColumn(name = "veterinar_id", nullable = false)
+    private Korisnik veterinar;
+
+    @Column(columnDefinition = "TEXT")
+    private String dijagnoza;
+
+    @Column(columnDefinition = "TEXT")
+    private String terapija;
+
+    @Column(nullable = false)
+    private LocalDate datum = LocalDate.now();
+
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
+
+    public Ljubimac getLjubimac() { return ljubimac; }
+    public void setLjubimac(Ljubimac ljubimac) { this.ljubimac = ljubimac; }
+
+    public Korisnik getVeterinar() { return veterinar; }
+    public void setVeterinar(Korisnik veterinar) { this.veterinar = veterinar; }
+
+    public String getDijagnoza() { return dijagnoza; }
+    public void setDijagnoza(String dijagnoza) { this.dijagnoza = dijagnoza; }
+
+    public String getTerapija() { return terapija; }
+    public void setTerapija(String terapija) { this.terapija = terapija; }
+
+    public LocalDate getDatum() { return datum; }
+    public void setDatum(LocalDate datum) { this.datum = datum; }
+}

@@ -1,0 +1,38 @@
+package com.veterinarska.stanica.repository;
+
+import com.veterinarska.stanica.model.Korisnik;
+import com.veterinarska.stanica.model.Prijateljstvo;
+import com.veterinarska.stanica.model.PrijateljstvoStatus;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+
+import java.util.List;
+
+public interface PrijateljstvoRepository extends JpaRepository<Prijateljstvo, Long> {
+
+    @Query("""
+      select (count(p) > 0) from Prijateljstvo p
+      where ((p.korisnik1.id = :a and p.korisnik2.id = :b)
+          or (p.korisnik1.id = :b and p.korisnik2.id = :a))
+        and p.status = :accepted
+    """)
+    boolean jesuPrijatelji(long a, long b, PrijateljstvoStatus accepted);
+
+    // Ako ti je zgodnije bez parametra, može i fiksirana vrednost:
+    @Query("""
+      select (count(p) > 0) from Prijateljstvo p
+      where ((p.korisnik1.id = :a and p.korisnik2.id = :b)
+          or (p.korisnik1.id = :b and p.korisnik2.id = :a))
+        and p.status = com.veterinarska.stanica.model.PrijateljstvoStatus.PRIHVACENO
+    """)
+    boolean jesuPrijateljiPrihvaceni(long a, long b);
+
+    // Listanje prijatelja (dve jednostavne projekcije su OK)
+    @Query("select p.korisnik2 from Prijateljstvo p where p.korisnik1.id = :userId and p.status = com.veterinarska.stanica.model.PrijateljstvoStatus.PRIHVACENO")
+    List<Korisnik> prijateljiGdeJeOnPrvi(long userId);
+
+    @Query("select p.korisnik1 from Prijateljstvo p where p.korisnik2.id = :userId and p.status = com.veterinarska.stanica.model.PrijateljstvoStatus.PRIHVACENO")
+    List<Korisnik> prijateljiGdeJeOnDrugi(long userId);
+
+    // (Opcionalno) helper koji vrati sve prijatelje kao jednu listu – možeš u servisu da spojiš obe gore
+}

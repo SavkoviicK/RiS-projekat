@@ -1,0 +1,346 @@
+<%@ page contentType="text/html; charset=UTF-8" %>
+<!DOCTYPE html>
+<html lang="sr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Poruke</title>
+  <style>
+    body{font-family:system-ui,Arial;margin:0;background:#f7f9fb}
+    header{display:flex;align-items:center;justify-content:space-between;gap:16px;
+           padding:16px 24px;background:#fff;border-bottom:1px solid #e6e6e6}
+    .wrap{max-width:900px;margin:24px auto;padding:0 16px}
+    nav a{margin-right:12px;text-decoration:none;color:#0b5ed7}
+    table{width:100%;border-collapse:collapse;background:#fff;border:1px solid #e6e6e6}
+    th,td{padding:10px;border-top:1px solid #eee;text-align:left}
+    thead tr{background:#f2f4f7}
+    .card{background:#fff;border:1px solid #e6e6e6;border-radius:12px;padding:16px;margin:16px 0}
+    .row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+    input,textarea,select{width:100%;padding:10px;border:1px solid #dcdcdc;border-radius:8px;background:#fff}
+    button{background:#0b5ed7;color:#fff;border:none;border-radius:8px;padding:10px 16px;cursor:pointer}
+    button:disabled{opacity:.6;cursor:not-allowed}
+    .muted{color:#666;font-size:.9em}
+    .hint{font-size:.9em;color:#444}
+    .link{color:#0b5ed7;cursor:pointer;text-decoration:underline}
+  </style>
+  <script defer src="/js/auth.js"></script>
+</head>
+<body>
+<header>
+  <div style="display:flex;align-items:center;gap:12px">
+    <img src="/img/logo.png" alt="Logo" style="height:46px" />
+    <strong>Veterinarska stanica</strong>
+  </div>
+  <nav>
+    <a href="/">Početna</a>
+    <a href="/ljubimci">Ljubimci</a>
+    <a href="/pregledi">Pregledi</a>
+    <a href="/poruke">Poruke</a>
+    <a id="navIzvestaji" href="/izvestaji" style="display:none">Izveštaji</a>
+  </nav>
+  <div id="userBox"><span id="userInfo"></span>
+    <button id="btnLogout" style="display:none;margin-left:8px">Odjava</button>
+  </div>
+</header>
+
+<div class="wrap">
+  <h1>💬 Poruke</h1>
+
+  <div id="info" class="muted" style="margin:6px 0 16px 0"></div>
+
+  <!-- PRIV ZONA -->
+  <div id="privPoruke" style="display:none">
+    <!-- Slanje poruke -->
+    <div id="sendCard" class="card">
+      <h3>Pošalji novu poruku</h3>
+
+      <div class="row">
+        <label style="min-width:120px">Primalac</label>
+        <select id="selPrimalac" style="min-width:300px">
+          <option value="">— učitavam primaoce —</option>
+        </select>
+        <span class="hint" id="recHint"></span>
+      </div>
+
+      <div class="row" id="manualRow" style="display:none">
+        <label style="min-width:120px">ID primaoca (ručno)</label>
+        <input id="manualId" type="number" placeholder="npr. 5" style="max-width:140px">
+        <span class="muted">Koristi samo ako lista nije dostupna.</span>
+      </div>
+
+      <div class="hint" style="margin:6px 0">
+        Nemaš nekog na listi? <span class="link" id="toggleManual">Unesi ID ručno</span>
+      </div>
+
+      <div style="height:8px"></div>
+      <div>
+        <textarea id="inpSadrzaj" rows="3" placeholder="Unesi poruku..."></textarea>
+      </div>
+      <div style="height:12px"></div>
+      <button id="btnSend">Pošalji</button>
+      <span id="sendMsg" class="muted" style="margin-left:8px"></span>
+    </div>
+
+    <!-- Lista poruka -->
+    <div class="card">
+      <h3>Vaše poruke</h3>
+      <div id="listMsg" class="muted" style="margin-bottom:8px">Učitavam…</div>
+      <table id="tbl">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Od</th>
+            <th>Za</th>
+            <th>Sadržaj</th>
+            <th>Datum</th>
+          </tr>
+        </thead>
+        <tbody id="rows">
+          <tr><td colspan="5">Učitavam…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+// --- Header info + “Izveštaji” samo ADMIN-u
+(function headerPaint(){
+  const info=document.getElementById('userInfo');
+  const btn=document.getElementById('btnLogout');
+  const navIzv=document.getElementById('navIzvestaji');
+
+  const t=localStorage.getItem('jwt');
+  const roles=JSON.parse(localStorage.getItem('roles')||'[]');
+
+  if(t){
+    const rolesNice = roles.map(r => String(r.authority||r).replace(/^ROLE_/, ''));
+    const txt = rolesNice.length ? 'Prijavljen ('+rolesNice.join(', ')+')' : 'Prijavljen';
+    info.textContent = txt;
+    btn.style.display='inline-block';
+    btn.onclick=()=>{ logout(); location.href='/'; };
+  }else{
+    info.innerHTML='<a href="/prijava">Prijavi se</a>';
+    btn.style.display='none';
+  }
+
+  const isAdmin = roles.some(r=>r.authority==='ROLE_ADMIN');
+  if(navIzv) navIzv.style.display = isAdmin ? 'inline' : 'none';
+})();
+
+function fmtDate(val){
+  if(!val) return '';
+  try{
+    const d = new Date(val);
+    if (Number.isNaN(d.getTime())) return String(val);
+    return d.toLocaleString();
+  }catch(_){ return String(val); }
+}
+
+function currentRoleNames(){
+  try{
+    const roles = JSON.parse(localStorage.getItem('roles')||'[]');
+    return roles.map(r => String(r.authority||r).replace(/^ROLE_/, '').toUpperCase());
+  }catch(_){ return []; }
+}
+function canUseMessages(){
+  const names = currentRoleNames();
+  return names.includes('VLASNIK') || names.includes('VETERINAR') || names.includes('ADMIN');
+}
+
+// --- Lista poruka
+async function loadPoruke(){
+  const rows  = document.getElementById('rows');
+  const listMsg = document.getElementById('listMsg');
+  const priv  = document.getElementById('privPoruke');
+  const info  = document.getElementById('info');
+  const sendCard = document.getElementById('sendCard');
+
+  if(!localStorage.getItem('jwt')){
+    info.innerHTML = 'Niste prijavljeni. <a href="/prijava">Prijavite se</a>.';
+    if (priv) priv.style.display='none';
+    return;
+  }
+  if (!canUseMessages()){
+    info.textContent = 'Ova sekcija je dostupna samo ovlašćenim korisnicima.';
+    if (priv) priv.style.display='none';
+    return;
+  }
+
+  info.textContent = '';
+  if (priv) priv.style.display='';
+  if (sendCard) sendCard.style.display='';
+
+  rows.innerHTML = '<tr><td colspan="5">Učitavam…</td></tr>';
+
+  try{
+    const data = await fetchJSON('/api/poruke', { headers: authHeader() }, 'listMsg', null, { appendServerText:false });
+    if(!Array.isArray(data) || data.length===0){
+      listMsg.textContent = 'Nema poruka.';
+      rows.innerHTML = '';
+      return;
+    }
+    listMsg.textContent = '';
+    rows.innerHTML = data.map(p =>
+      '<tr>'
+        + '<td>' + (p.id ?? '') + '</td>'
+        + '<td>' + (p.posiljalacEmail ? p.posiljalacEmail : ('#' + (p.posiljalacId ?? ''))) + '</td>'
+        + '<td>' + (p.primalacEmail   ? p.primalacEmail   : ('#' + (p.primalacId   ?? ''))) + '</td>'
+        + '<td>' + (p.sadrzaj ?? '') + '</td>'
+        + '<td>' + fmtDate(p.vreme || p.datum) + '</td>'
+      + '</tr>'
+    ).join('');
+  }catch(_){
+    if (priv) priv.style.display='none';
+    rows.innerHTML = '';
+  }
+}
+
+/* ===== Normalizacija korisnika/rola ===== */
+function _normRoleNames(u) {
+  if (!u) return [];
+  if (Array.isArray(u)) return u.map(r => String(r.authority || r.naziv || r.role || r).replace(/^ROLE_/,'').toUpperCase());
+  if (typeof u === 'object') {
+    if (Array.isArray(u.authorities)) return _normRoleNames(u.authorities);
+    if (Array.isArray(u.roles))       return _normRoleNames(u.roles);
+    if (Array.isArray(u.uloge))       return _normRoleNames(u.uloge);
+  }
+  return [];
+}
+function _normUser(raw) {
+  const id    = raw.id ?? raw.userId ?? raw.korisnikId ?? raw.veterinarId ?? raw.vlasnikId;
+  const email = raw.email || raw.username || raw.korisnikEmail || raw.mail || '';
+  const ime   = raw.ime ? (raw.prezime ? (raw.ime + ' ' + raw.prezime) : raw.ime)
+                        : (raw.naziv || raw.displayName || '');
+  const roles = _normRoleNames(raw.authorities || raw.roles || raw.uloge || raw.privilegije || raw.rola);
+  return { id, email, ime, roles };
+}
+
+/* ===== Učitavanje primaoca: probaj više ruta + fallback ===== */
+async function loadPrimaoci(){
+  const sel  = document.getElementById('selPrimalac');
+  const hint = document.getElementById('recHint');
+  sel.disabled = true;
+  sel.innerHTML = '<option value="">Učitavam…</option>';
+  hint.textContent = '';
+
+  if(!localStorage.getItem('jwt')){
+    sel.innerHTML = '<option value="">— prvo se prijavite —</option>';
+    sel.disabled = false;
+    return;
+  }
+
+  // probamo više tipičnih ruta (uzmi prvu koja radi)
+  const candidates = [
+    '/api/veterinari',
+    '/api/vlasnici',
+    '/api/korisnici?rola=VETERINAR',
+    '/api/korisnici?rola=VLASNIK',
+    '/api/korisnici/all',
+    '/api/korisnici/svi',
+    '/api/korisnici',
+    '/api/users'
+  ];
+
+  let lista = [];
+  let used  = null;
+  for (const url of candidates) {
+    try{
+      const data = await fetchJSON(url, { headers: authHeader() }, null, null, {appendServerText:false});
+      if (Array.isArray(data) && data.length) { lista = data; used = url; break; }
+    }catch(e){
+      // samo nastavi da proba sledeći endpoint
+    }
+  }
+
+  // ništa nismo našli
+  if (!Array.isArray(lista) || lista.length === 0){
+    sel.innerHTML = '<option value="">Nema dostupnih primalaca</option>';
+    sel.disabled = false;
+    hint.textContent = 'Ako backend nema listu korisnika, koristi „Unesi ID ručno“.';
+    return;
+  }
+
+  // normalizuj + filtriraj po ulozi prijavljenog
+  let users = lista.map(_normUser).filter(u => u.id && u.email);
+  const my  = currentRoleNames();
+
+  users = users.filter(u => {
+    const toAdmin = u.roles.includes('ADMIN');
+    if (my.includes('VLASNIK'))    return u.roles.includes('VETERINAR') || toAdmin;
+    if (my.includes('VETERINAR'))  return u.roles.includes('VLASNIK')   || toAdmin;
+    return true; // ADMIN -> sve
+  });
+
+  if (users.length === 0){
+    sel.innerHTML = '<option value="">Nema dostupnih primalaca</option>';
+    sel.disabled = false;
+    hint.textContent = 'Nema korisnika druge uloge. Koristi „Unesi ID ručno“.';
+    return;
+  }
+
+  sel.innerHTML = '<option value="">— izaberi primaoca —</option>';
+  users.forEach(u => {
+    const opt = document.createElement('option');
+    opt.value = String(u.id);
+    opt.textContent = (u.ime ? (u.ime+' – ') : '') + u.email + ' (#'+u.id+')';
+    sel.appendChild(opt);
+  });
+  sel.disabled = false;
+
+  // sitan hint: pokaži koju rutu smo pogodili (korisno za debug)
+  hint.textContent = 'Izvor: ' + used;
+}
+
+/* ===== ručni ID toggle + resolv ===== */
+(function(){
+  const toggle = document.getElementById('toggleManual');
+  const row    = document.getElementById('manualRow');
+  toggle.addEventListener('click', ()=>{
+    row.style.display = row.style.display === 'none' ? 'flex' : 'none';
+  });
+})();
+function resolvePrimalacId(){
+  const sel = document.getElementById('selPrimalac');
+  const manual = Number(document.getElementById('manualId').value || 0);
+  if (manual > 0) return manual;
+  const val = sel ? sel.value : '';
+  return val && /^\d+$/.test(val) ? Number(val) : null;
+}
+
+/* ===== Slanje poruke ===== */
+async function posaljiPoruku(){
+  const btn = document.getElementById('btnSend');
+  const primalacId = resolvePrimalacId();
+  const sadrzaj = (document.getElementById('inpSadrzaj').value||'').trim();
+
+  if(!primalacId || !sadrzaj){
+    showMsg('sendMsg', !primalacId ? 'Izaberi primaoca ili unesi ID.' : 'Unesi sadržaj poruke.');
+    return;
+  }
+
+  btn.disabled = true; showMsg('sendMsg', 'Šaljem…');
+  try{
+    await fetchJSON('/api/poruke', {
+      method: 'POST',
+      headers: { ...authHeader(), 'Content-Type':'application/json' },
+      body: JSON.stringify({ primalacId, sadrzaj })
+    }, 'sendMsg');
+    showMsg('sendMsg', 'Poruka poslata ✅');
+    document.getElementById('inpSadrzaj').value = '';
+    await loadPoruke();
+  }catch(_){
+    // poruka već prikazana u #sendMsg
+  }finally{
+    btn.disabled=false;
+  }
+}
+
+window.addEventListener('load', ()=>{
+  loadPoruke();
+  loadPrimaoci();
+  document.getElementById('btnSend').addEventListener('click', posaljiPoruku);
+});
+</script>
+</body>
+</html>

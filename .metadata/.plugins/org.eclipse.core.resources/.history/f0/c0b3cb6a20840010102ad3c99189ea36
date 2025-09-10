@@ -1,0 +1,45 @@
+package com.veterinarska.stanica.controller;
+
+import org.springframework.http.ResponseEntity;
+import org.springframework.validation.BindingResult;
+import org.springframework.web.bind.annotation.*;
+import java.util.List;
+
+import com.veterinarska.stanica.model.Usluga;
+import com.veterinarska.stanica.repository.UslugaRepository;
+
+import jakarta.validation.Valid;
+
+import static com.veterinarska.stanica.mapper.AppMapper.toDTO;
+import com.veterinarska.stanica.dto.UslugaDTO;
+
+
+@RestController
+@RequestMapping("/api/usluge")
+public class UslugaController {
+
+    private final UslugaRepository repo;
+
+    public UslugaController(UslugaRepository repo) {
+        this.repo = repo;
+    }
+
+    // Dodaj uslugu
+    @PostMapping
+    public ResponseEntity<?> dodaj(@Valid @RequestBody Usluga u, BindingResult result) {
+        if (result.hasErrors()) {
+            return ResponseEntity.badRequest().body(result.getAllErrors());
+        }
+        return ResponseEntity.ok(repo.save(u));
+    }
+
+    
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<?> obrisi(@PathVariable Long id) {
+        if (!repo.existsById(id)) return ResponseEntity.notFound().build();
+        repo.deleteById(id);
+        return ResponseEntity.noContent().build();
+    }
+
+}

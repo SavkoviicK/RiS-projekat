@@ -1,0 +1,83 @@
+package com.veterinarska.stanica.controller;
+
+import com.veterinarska.stanica.dto.MedicinskiZapisDTO;
+import com.veterinarska.stanica.mapper.AppMapper;
+import com.veterinarska.stanica.model.MedicinskiZapis;
+import com.veterinarska.stanica.repository.KorisnikRepository;
+import com.veterinarska.stanica.repository.LjubimacRepository;
+import com.veterinarska.stanica.repository.MedicinskiZapisRepository;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+import java.util.Map;
+
+import static com.veterinarska.stanica.mapper.AppMapper.toDTO;
+
+@RestController
+@RequestMapping("/api/medicinski-zapisi")
+public class MedicinskiZapisController {
+
+    private final MedicinskiZapisRepository repo;
+    private final LjubimacRepository ljubimacRepo;
+    private final KorisnikRepository korisnikRepo;
+
+    public MedicinskiZapisController(MedicinskiZapisRepository repo,
+                                     LjubimacRepository ljubimacRepo,
+                                     KorisnikRepository korisnikRepo) {
+        this.repo = repo;
+        this.ljubimacRepo = ljubimacRepo;
+        this.korisnikRepo = korisnikRepo;
+    }
+
+    @GetMapping
+    public List<MedicinskiZapisDTO> svi() {
+        return repo.findAll().stream().map(AppMapper::toDTO).toList();
+    }
+
+    @PostMapping
+    public ResponseEntity<?> dodaj(@RequestBody Map<String, Object> body,
+                                   Authentication auth) {
+        // 1) Validacija ulaza
+        if (body == null || !body.containsKey("ljubimacId")) {
+            return ResponseEntity.badRequest().body("Nedostaje ljubimacId");
+        }
+        Long ljubimacId;
+        try {
+            ljubimacId = Long.valueOf(String.valueOf(body.get("ljubimacId")));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body("Neispravan ljubimacId");
+        }
+        String dijagnoza = body.get("dijagnoza") != null ? String.valueOf(body.get("dijagnoza")).trim() : "";
+        String terapija = body.get("terapija") != null ? String.valueOf(body.get("terapija")).trim() : "";
+
+        if (dijagnoza.isBlank()) {
+            return ResponseEntity.badRequest().body("Dijagnoza je obavezna");
+        }
+
+        // 2) Iz tokena uzmi veterinara
+        if (auth == null || auth.getName() == null) {
+            return ResponseEntity.status(401).body("Niste prijavljeni");
+        }
+        var veterinar = korisnikRepo.findByEmail(auth.getName())
+                .orElseThrow(() -> new RuntimeException("Veterinar nije pronađen"));
+
+        // (opciono) ovde možeš proveriti da ima ROLE_VETERINAR
+
+        // 3) Učitaj ljubimca
+        var ljubimac = ljubimacRepo.findById(ljubimacId)
+                .orElseThrow(() -> new RuntimeException("Ljubimac ne postoji"));
+
+        // 4) Sastavi i sačuvaj zapis
+        var m = new MedicinskiZapis();
+        m.setLjubimac(ljubimac);
+        m.setVeterinar(veterinar);
+        m.setDijagnoza(dijagnoza);
+        m.setTerapija(terapija);
+        // datum je default LocalDate.now() u entitetu
+
+        var sacuvan = repo.save(m);
+        return ResponseEntity.ok(toDTO(sacuvan));
+    }
+}

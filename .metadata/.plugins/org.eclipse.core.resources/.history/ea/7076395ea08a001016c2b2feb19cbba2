@@ -1,0 +1,18 @@
+package com.veterinarska.stanica.repository;
+
+import com.veterinarska.stanica.model.Message;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+
+import java.util.List;
+
+public interface MessageRepository extends JpaRepository<Message, Long> {
+
+    @Query("""
+      from Message m
+      where (m.sender.id = :a and m.receiver.id = :b)
+         or (m.sender.id = :b and m.receiver.id = :a)
+      order by m.sentAt asc
+    """)
+    List<Message> conversation(long a, long b);
+}

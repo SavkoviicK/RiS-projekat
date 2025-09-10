@@ -1,0 +1,5 @@
+package com.veterinarska.stanica.controller;
+
+public class WhoAmIController {
+
+}

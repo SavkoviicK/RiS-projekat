@@ -1,0 +1,113 @@
+package com.veterinarska.stanica.service;
+
+import com.veterinarska.stanica.model.Korisnik;
+import com.veterinarska.stanica.model.Prijateljstvo;
+import com.veterinarska.stanica.model.ZahtevZaPrijateljstvo;
+import com.veterinarska.stanica.repository.KorisnikRepository;
+import com.veterinarska.stanica.repository.PrijateljstvoRepository;
+import com.veterinarska.stanica.repository.ZahtevZaPrijateljstvoRepository;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.*;
+
+@Service
+public class PrijateljiService {
+
+    private final KorisnikRepository korisnikRepo;
+    private final PrijateljstvoRepository prijateljstvoRepo;
+    private final ZahtevZaPrijateljstvoRepository zahtevRepo;
+
+    public PrijateljiService(KorisnikRepository korisnikRepo,
+                             PrijateljstvoRepository prijateljstvoRepo,
+                             ZahtevZaPrijateljstvoRepository zahtevRepo) {
+        this.korisnikRepo = korisnikRepo;
+        this.prijateljstvoRepo = prijateljstvoRepo;
+        this.zahtevRepo = zahtevRepo;
+    }
+
+    @Transactional
+    public void posaljiZahtev(Long posiljalacId, Long primalacId) {
+        if (posiljalacId == null || primalacId == null) {
+            throw new IllegalArgumentException("Nedostaje ID pošiljaoca ili primaoca.");
+        }
+        if (posiljalacId.equals(primalacId)) {
+            throw new IllegalArgumentException("Ne možeš poslati zahtev samom sebi.");
+        }
+
+        Korisnik posiljalac = korisnikRepo.findById(posiljalacId)
+                .orElseThrow(() -> new IllegalArgumentException("Pošiljalac ne postoji"));
+        Korisnik primalac = korisnikRepo.findById(primalacId)
+                .orElseThrow(() -> new IllegalArgumentException("Primalac ne postoji"));
+
+        // ✅ koristi ID-jeve, jer je repozitorijum takav
+        if (prijateljstvoRepo.jesuPrijatelji(posiljalac.getId(), primalac.getId())) {
+            throw new IllegalStateException("Već ste prijatelji.");
+        }
+
+        // ✅ proveri i direktan i obrnut smer pending zahteva
+        boolean postojiDirektan = zahtevRepo.existsByPosiljalacAndPrimalacAndStatus(
+                posiljalac, primalac, ZahtevZaPrijateljstvo.Status.NA_CEKANJU);
+        boolean postoji Obrnut = zahtevRepo.existsByPosiljalacAndPrimalacAndStatus(
+                primalac, posiljalac, ZahtevZaPrijateljstvo.Status.NA_CEKANJU);
+        if (postojiDirektan || postojiObrnut) {
+            throw new IllegalStateException("Zahtev već postoji i na čekanju je.");
+        }
+
+        ZahtevZaPrijateljstvo z = new ZahtevZaPrijateljstvo();
+        z.setPosiljalac(posiljalac);
+        z.setPrimalac(primalac);
+        z.setStatus(ZahtevZaPrijateljstvo.Status.NA_CEKANJU);
+        zahtevRepo.save(z);
+    }
+
+    @Transactional
+    public void odgovoriNaZahtev(Long zahtevId, boolean prihvati) {
+        ZahtevZaPrijateljstvo z = zahtevRepo.findById(zahtevId)
+                .orElseThrow(() -> new IllegalArgumentException("Zahtev nije pronađen."));
+
+        if (prihvati) {
+            z.setStatus(ZahtevZaPrijateljstvo.Status.PRIHVACEN);
+
+            // normalizuj poredak da izbegneš duplikate (1,2) i (2,1)
+            Long aId = z.getPosiljalac().getId();
+            Long bId = z.getPrimalac().getId();
+            Korisnik k1 = aId < bId ? z.getPosiljalac() : z.getPrimalac();
+            Korisnik k2 = aId < bId ? z.getPrimalac()   : z.getPosiljalac();
+
+            // ✅ koristi ID-jeve kod provere
+            if (!prijateljstvoRepo.jesuPrijatelji(k1.getId(), k2.getId())) {
+                Prijateljstvo p = new Prijateljstvo();
+                p.setKorisnik1(k1);
+                p.setKorisnik2(k2);
+                prijateljstvoRepo.save(p);
+            }
+        } else {
+            z.setStatus(ZahtevZaPrijateljstvo.Status.ODBIJEN);
+        }
+        zahtevRepo.save(z);
+    }
+
+    public List<ZahtevZaPrijateljstvo> pendingZa(Long korisnikId) {
+        Korisnik k = korisnikRepo.findById(korisnikId)
+                .orElseThrow(() -> new IllegalArgumentException("Korisnik ne postoji"));
+        return zahtevRepo.findByPrimalacAndStatus(k, ZahtevZaPrijateljstvo.Status.NA_CEKANJU);
+    }
+
+    public List<Korisnik> listaPrijatelja(long userId) {
+        // ✅ NIKAKO PrijateljstvoRepository.xxx (to je naziv klase) nego injected bean: prijateljstvoRepo
+        var a = prijateljstvoRepo.prijateljiGdeJeOnPrvi(userId);
+        var b = prijateljstvoRepo.prijateljiGdeJeOnDrugi(userId);
+
+        // deduplikacija po ID-u uz zadržavanje stabilnog redosleda
+        Map<Long, Korisnik> map = new LinkedHashMap<>();
+        for (var k : a) if (k != null) map.put(k.getId(), k);
+        for (var k : b) if (k != null) map.put(k.getId(), k);
+
+        return new ArrayList<>(map.values());
+    }
+
+    public boolean jesuPrijatelji(Long aId, Long bId) {
+        return prijateljstvoRepo.jesuPrijatelji(aId, bId);
+    }
+}

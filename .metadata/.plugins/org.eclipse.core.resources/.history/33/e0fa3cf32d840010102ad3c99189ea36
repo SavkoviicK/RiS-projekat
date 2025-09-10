@@ -1,0 +1,35 @@
+package com.veterinarska.stanica.controller;
+
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import java.util.List;
+
+import com.veterinarska.stanica.model.MedicinskiZapis;
+import com.veterinarska.stanica.repository.MedicinskiZapisRepository;
+
+import com.veterinarska.stanica.dto.MedicinskiZapisDTO;
+import com.veterinarska.stanica.mapper.AppMapper;
+
+
+@RestController
+@RequestMapping("/api/medicinski-zapisi")
+public class MedicinskiZapisController {
+
+    private final MedicinskiZapisRepository repo;
+
+    public MedicinskiZapisController(MedicinskiZapisRepository repo) {
+        this.repo = repo;
+    }
+
+    // Dodaj zapis
+    @PostMapping
+    public ResponseEntity<MedicinskiZapis> dodaj(@RequestBody MedicinskiZapis zapis) {
+        return ResponseEntity.ok(repo.save(zapis));
+    }
+
+    // Svi zapisi
+    @GetMapping
+    public List<MedicinskiZapis> svi() {
+        return repo.findAll();
+    }
+}

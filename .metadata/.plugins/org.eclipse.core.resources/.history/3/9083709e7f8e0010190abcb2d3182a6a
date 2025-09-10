@@ -1,0 +1,176 @@
+/* Simple auth helpers (JWT u localStorage) */
+
+// Pretvori razne formate whoami u [{authority:"ROLE_X"}]
+function normalizeRoles(whoamiJson){
+  if (!whoamiJson) return [];
+  let roles = [];
+  if (Array.isArray(whoamiJson)) {
+    roles = whoamiJson;
+  } else if (whoamiJson.roles && Array.isArray(whoamiJson.roles)) {
+    roles = whoamiJson.roles;
+  } else if (whoamiJson.authorities && Array.isArray(whoamiJson.authorities)) {
+    roles = whoamiJson.authorities;
+  }
+  if (roles.length && typeof roles[0] === 'string') return roles.map(r => ({authority: r}));
+  if (roles.length && typeof roles[0] === 'object' && roles[0].authority) return roles;
+  return [];
+}
+
+/* ---------- LEPE PORUKE / FETCH POMOCNICI ---------- */
+
+function friendlyHttpMessage(res, fallback) {
+  const code = res.status;
+  const map = {
+    400: 'Neispravan zahtev. Proverite unos.',
+    401: 'Pogrešan email ili lozinka.',
+    403: 'Nemate dozvolu za ovu akciju.',
+    404: 'Traženi resurs nije pronađen.',
+    409: 'Sukob podataka (već postoji?).',
+    422: 'Podaci nisu prošli validaciju.',
+    429: 'Previše zahteva. Pokušajte kasnije.'
+  };
+  if (map[code]) return map[code];
+  if (code >= 500) return 'Greška na serveru. Pokušajte ponovo.';
+  return fallback || ('Greška (' + code + ').');
+}
+
+function showMsg(targetId, text) {
+  const el = targetId && document.getElementById(targetId);
+  if (el) { el.textContent = text; return; }
+  alert(text);
+}
+
+async function fetchJSON(url, options, targetId, customMap, opts) {
+  const res = await fetch(url, options || {});
+  const appendServerText = !opts || opts.appendServerText !== false;
+
+  if (!res.ok) {
+    let serverText = '';
+    try {
+      const ct = res.headers.get('content-type') || '';
+      if (ct.includes('application/json')) {
+        const obj = await res.json();
+        serverText = obj.message || obj.error || obj.detail || '';
+      } else {
+        serverText = await res.text();
+      }
+    } catch(_) {}
+
+    const base = (customMap && customMap[res.status]) || friendlyHttpMessage(res);
+
+    const shouldAppend = appendServerText && !(res.status === 401 || res.status === 403);
+
+    const msg = (shouldAppend && serverText && serverText !== base)
+      ? (base + ' – ' + serverText)
+      : base;
+
+    showMsg(targetId, msg);
+    throw new Error(msg);
+  }
+
+  const ct = res.headers.get('content-type') || '';
+  return ct.includes('application/json') ? res.json() : res.text();
+}
+
+window.friendlyHttpMessage = friendlyHttpMessage;
+window.showMsg = showMsg;
+window.fetchJSON = fetchJSON;
+
+/* ---------- AUTH ---------- */
+
+async function login(email, lozinka) {
+  const data = await fetchJSON(
+    '/api/auth/login',
+    {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ email, lozinka })
+    },
+    'loginError',
+    { 401: 'Pogrešan email ili lozinka.' },
+    { appendServerText: false }
+  );
+
+  const token = data.token;
+  localStorage.setItem('jwt', token);
+
+  try {
+    // ⬅️ KLJUČNA PROMENA: pozivamo /api/auth/whoami (ne /api/whoami)
+    const raw = await fetchJSON('/api/auth/whoami', { headers: { 'Authorization': 'Bearer ' + token }});
+    localStorage.setItem('roles', JSON.stringify(normalizeRoles(raw)));
+  } catch (_) {
+    localStorage.setItem('roles', '[]');
+  }
+  return token;
+}
+
+function logout(){
+  localStorage.removeItem('jwt');
+  localStorage.removeItem('roles');
+}
+
+function authHeader(){
+  const t = localStorage.getItem('jwt');
+  return t ? { 'Authorization': 'Bearer ' + t } : {};
+}
+
+function showAdminMenu(){
+  try{
+    const link = document.getElementById('navIzvestaji');
+    if (!link) return;
+    const roles = JSON.parse(localStorage.getItem('roles')||'[]');
+    const isAdmin = roles.some(r => (r.authority||'') === 'ROLE_ADMIN');
+    link.style.display = isAdmin ? 'inline' : 'none';
+  }catch(e){}
+}
+
+function formatRoleName(x){
+  const s = typeof x === 'string' ? x : (x && x.authority) ? x.authority : '';
+  return s.replace(/^ROLE_/,'');
+}
+
+function paintUserInfoHeader() {
+  const info = document.getElementById('userInfo');
+  const btn  = document.getElementById('btnLogout');
+  const navIzv = document.getElementById('navIzvestaji');
+  if (!info || !btn) return;
+
+  const token = localStorage.getItem('jwt');
+  let roles = [];
+  try { roles = JSON.parse(localStorage.getItem('roles')||'[]'); } catch(_) {}
+
+  if (token){
+    const nice = roles.map(formatRoleName).filter(Boolean);
+    info.textContent = nice.length ? ('Prijavljen ('+nice.join(', ')+')') : 'Prijavljen';
+    btn.style.display = 'inline-block';
+    btn.onclick = ()=>{ logout(); location.href='/'; };
+  } else {
+    info.innerHTML = '<a href="/prijava">Prijavi se</a>';
+    btn.style.display = 'none';
+  }
+  const isAdmin = roles.some(r => (r.authority||'') === 'ROLE_ADMIN');
+  if (navIzv) navIzv.style.display = isAdmin ? 'inline' : 'none';
+}
+
+window.formatRoleName = formatRoleName;
+window.paintUserInfoHeader = paintUserInfoHeader;
+
+document.addEventListener('DOMContentLoaded', () => {
+  const btn = document.getElementById('btnLogin');
+  if (!btn) return;
+  btn.onclick = async () => {
+    const email = (document.getElementById('email')?.value || '').trim();
+    const pwd   = (document.getElementById('pwd')?.value || '');
+    const errEl = document.getElementById('loginError');
+    if (errEl) errEl.textContent = 'Prijavljivanje...';
+
+    try {
+      await login(email, pwd);
+      if (errEl) errEl.textContent = 'Uspešno! Preusmeravam...';
+      setTimeout(() => location.href='/', 600);
+    } catch (e) {
+      if (errEl) errEl.textContent = e.message;
+      else alert(e.message);
+    }
+  };
+});

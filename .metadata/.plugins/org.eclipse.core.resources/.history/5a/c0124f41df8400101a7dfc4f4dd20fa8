@@ -1,0 +1,86 @@
+package com.veterinarska.stanica.config;
+
+import com.veterinarska.stanica.security.JwtAuthFilter;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+
+@Configuration
+public class SecurityConfig {
+
+    private final JwtAuthFilter jwtAuthFilter;
+
+    public SecurityConfig(JwtAuthFilter jwtAuthFilter) {
+        this.jwtAuthFilter = jwtAuthFilter;
+    }
+
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
+
+    @Bean
+    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+        http
+            .csrf(AbstractHttpConfigurer::disable)
+            .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .authorizeHttpRequests(auth -> auth
+                // ===== PUBLICNE PUTANJE (Dostupne svima, bez autentikacije) =====
+                .requestMatchers("/api/ping").permitAll()
+                .requestMatchers("/api/auth/**").permitAll()
+                .requestMatchers("/api/korisnici/registracija").permitAll()
+                .requestMatchers("/v3/api-docs/**", "/swagger-ui.html", "/swagger-ui/**").permitAll()
+
+                // ===== PUTANJE KOJE ZAHTEVAJU AUTENTIKACIJU (Ulogovani korisnici) =====
+                // Promenjeno: "whoami" sada zahteva da korisnik bude ulogovan.
+                .requestMatchers("/api/whoami").authenticated()
+
+                // ===== VETERINAR =====
+                // Sada eksplicitno dozvoljavamo POST zahtev za medicinske zapise.
+                .requestMatchers(HttpMethod.POST, "/api/medicinski-zapisi").hasRole("VETERINAR")
+                // A ostale metode (GET, PUT, DELETE) na podputanjama
+                .requestMatchers("/api/medicinski-zapisi/**").hasRole("VETERINAR")
+
+                // ===== ADMIN =====
+                .requestMatchers("/api/usluge", "/api/usluge/**").hasRole("ADMIN")
+                //u insomnii
+                //.requestMatchers("/api/izvestaji/**").hasRole("ADMIN")
+
+                // ===== PREGLEDI (Različite uloge, različite metode) =====
+                .requestMatchers(HttpMethod.PATCH,  "/api/pregledi/**").hasRole("VETERINAR")
+                .requestMatchers(HttpMethod.POST,   "/api/pregledi/**").hasRole("VLASNIK")
+                .requestMatchers(HttpMethod.PUT,    "/api/pregledi/**").hasRole("VLASNIK")
+                .requestMatchers(HttpMethod.DELETE, "/api/pregledi/**").hasRole("VLASNIK")
+                .requestMatchers(HttpMethod.GET,    "/api/pregledi/**")
+                    .hasAnyRole("VLASNIK", "VETERINAR", "ADMIN")
+
+                  //FRONTED
+                    
+                .requestMatchers(
+                      "/",                 // početna JSP
+                      "/home",             // ako bude ruta
+                      "/prijava", "/login",
+                      "/img/**", "/css/**", "/js/**", "/webjars/**", "/favicon.ico"  // statički fajlovi
+                ).permitAll()
+
+    
+                // ===== LJUBIMCI (VLASNIK) =====
+                .requestMatchers("/api/ljubimci/**").hasRole("VLASNIK")
+                .requestMatchers("/api/izvestaji/**").permitAll()
+
+                                
+                // ===== SVE OSTALO (Autentifikacija za sve ostale putanje) =====
+                .anyRequest().authenticated()
+            )
+            .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+
+        return http.build();
+    }
+}

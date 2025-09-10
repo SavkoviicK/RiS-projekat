@@ -1,0 +1,73 @@
+package com.veterinarska.stanica.controller;
+
+import com.veterinarska.stanica.dto.KorisnikDTO;
+import com.veterinarska.stanica.mapper.AppMapper;
+import com.veterinarska.stanica.model.Korisnik;
+import com.veterinarska.stanica.model.Uloga;
+import com.veterinarska.stanica.repository.KorisnikRepository;
+import jakarta.validation.Valid;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.validation.BindingResult;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/korisnici")
+public class KorisnikController {
+
+    private final KorisnikRepository repo;
+    private final PasswordEncoder encoder;
+
+    public KorisnikController(KorisnikRepository repo, PasswordEncoder encoder) {
+        this.repo = repo;
+        this.encoder = encoder;
+    }
+
+    // --- REGISTRACIJA ---
+    @PostMapping("/registracija")
+    public ResponseEntity<?> registracija(@Valid @RequestBody Korisnik k, BindingResult result) {
+        if (result.hasErrors()) {
+            return ResponseEntity.badRequest().body(result.getAllErrors());
+        }
+        if (repo.existsByEmail(k.getEmail())) {
+            return ResponseEntity.badRequest().body("Email je zauzet");
+        }
+        // hešuj lozinku
+        k.setLozinka(encoder.encode(k.getLozinka()));
+
+        Korisnik sacuvan = repo.save(k);
+        KorisnikDTO dto = AppMapper.toDTO(sacuvan);
+        return ResponseEntity.ok(dto);
+    }
+
+    // --- SVI KORISNICI ili filtrirano po roli ---
+    // Primeri:
+    //   GET /api/korisnici                -> svi
+    //   GET /api/korisnici?rola=VETERINAR -> samo veterinari
+    //   GET /api/korisnici?rola=vlasnik   -> samo vlasnici
+    @GetMapping
+    public List<KorisnikDTO> svi(@RequestParam(value = "rola", required = false) String rola) {
+        if (rola == null || rola.isBlank()) {
+            return repo.findAll().stream().map(AppMapper::toDTO).toList();
+        }
+        Uloga target;
+        try {
+            target = Uloga.valueOf(rola.trim().toUpperCase());
+        } catch (IllegalArgumentException ex) {
+            // Ako rola nije validna, vrati prazno (može i 400, ali ovde je praktičnije prazno)
+            return List.of();
+        }
+        return repo.findAllByUloga(target).stream().map(AppMapper::toDTO).toList();
+    }
+
+    // --- SAMO VETERINARI (ostavljeno radi kompatibilnosti sa postojećim pozivima) ---
+    @GetMapping("/veterinari")
+    public List<KorisnikDTO> veterinari() {
+        return repo.findAllByUloga(Uloga.VETERINAR).stream()
+                .map(AppMapper::toDTO)
+                .toList();
+        // Napomena: isto dobijate i sa GET /api/korisnici?rola=VETERINAR
+    }
+}

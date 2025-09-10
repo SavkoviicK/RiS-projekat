@@ -1,0 +1,160 @@
+<%@ page contentType="text/html; charset=UTF-8" language="java" %>
+<!DOCTYPE html>
+<html lang="sr">
+<head>
+  <meta charset="UTF-8">
+  <title>Vaš ljubimac</title>
+  <!-- Google font -->
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+
+  <style>
+    body{font-family:'Poppins',sans-serif;margin:0;background:#f7f9fb;color:#1a1a1a}
+
+    header{display:flex;align-items:center;justify-content:space-between;gap:16px;
+           padding:16px 24px;background:#fff;border-bottom:1px solid #e6e6e6}
+    header img{height:56px}
+    nav a{margin-right:14px;text-decoration:none;color:#0b5ed7;font-weight:500}
+    nav a:hover{text-decoration:underline}
+
+    .hero{
+      display:flex;align-items:center;justify-content:space-between;gap:24px;
+      padding:80px 40px;
+      background:
+        linear-gradient(120deg,rgba(255,255,255,0.6) 0%, rgba(247,249,251,0.95) 100%),
+        url('${pageContext.request.contextPath}/img/hero.png') center/cover no-repeat;
+      border-bottom:1px solid #e9eef3;
+      color:#033b4a;
+    }
+    .hero h1{margin:0 0 12px;font-size:2.8rem;font-weight:600}
+    .hero p{margin:0 0 20px;font-size:1.2rem;color:#055a68}
+
+    .btn{
+      display:inline-block;background:linear-gradient(90deg,#0b5ed7,#007bff);color:#fff;
+      padding:14px 24px;border-radius:12px;text-decoration:none;border:0;cursor:pointer;
+      transition:.25s ease;font-weight:600;letter-spacing:.4px
+    }
+    .btn:hover{filter:brightness(1.1)}
+
+    .card{
+      background:#fff;border:1px solid #e6e6e6;border-radius:14px;padding:22px;
+      box-shadow:0 2px 4px rgba(0,0,0,.05);
+      transition:.3s ease;animation:fadeIn .6s ease forwards;text-align:center
+    }
+    .card:hover{transform:translateY(-6px);box-shadow:0 14px 28px rgba(0,0,0,.12)}
+    .card h3{margin:10px 0;font-size:1.2rem}
+    .card p{margin:0;color:#555}
+
+    .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px;padding:40px 24px;max-width:1100px;margin:0 auto}
+
+    .section-title{text-align:center;color:#2b2f33;margin:36px 0 18px;font-weight:700;font-size:1.6rem}
+    hr.soft{border:0;height:1px;background:#eceff3;margin:28px 0}
+
+    .gallery{
+      display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+      gap:20px;max-width:1100px;margin:0 auto 40px;padding:0 20px
+    }
+    .gallery .tile{
+      background:#fff;border:1px solid #e6e6e6;border-radius:12px;overflow:hidden;
+      box-shadow:0 1px 0 rgba(0,0,0,.02);
+      transition:.3s ease;text-align:center;
+      animation:fadeIn .7s ease forwards
+    }
+    .gallery .tile:hover{transform:translateY(-6px);box-shadow:0 14px 28px rgba(0,0,0,.14)}
+    .gallery .tile img{width:100%;aspect-ratio:16/9;object-fit:cover;display:block;transition:.25s ease}
+    .gallery .tile:hover img{transform:scale(1.05)}
+
+    footer{
+      background:#0b5ed7;color:#fff;text-align:center;padding:24px;margin-top:40px;
+      font-size:.95rem
+    }
+    footer a{color:#fff;text-decoration:none;font-weight:500}
+    footer a:hover{text-decoration:underline}
+
+    @keyframes fadeIn{
+      from{opacity:0;transform:translateY(20px)}
+      to{opacity:1;transform:translateY(0)}
+    }
+  </style>
+</head>
+<body>
+<header>
+  <div style="display:flex;align-items:center;gap:16px;">
+    <img src="${pageContext.request.contextPath}/img/logo.png" alt="Logo">
+    <div style="font-weight:700;font-size:1.2rem">Veterinarska stanica Vaš ljubimac</div>
+  </div>
+
+  <nav>
+    <a href="${pageContext.request.contextPath}/ljubimci">Ljubimci</a>
+    <a href="${pageContext.request.contextPath}/pregledi">Pregledi</a>
+    <a href="${pageContext.request.contextPath}/poruke">Poruke</a>
+    <a id="navIzvestaji" href="${pageContext.request.contextPath}/izvestaji" style="display:none">Izveštaji</a>
+    <span id="navRegistracija"><a href="${pageContext.request.contextPath}/registracija">Registracija</a></span>
+  </nav>
+
+  <div id="userBox" style="margin-left:auto;">
+    <span id="userInfo"></span>
+    <button id="btnLogout" class="btn" style="margin-left:12px;display:none;">Odjava</button>
+  </div>
+</header>
+
+<section class="hero">
+  <div>
+    <h1>Dobrodošli 🐾</h1>
+    <p>Upravljajte ljubimcima, zakažite preglede i generišite izveštaje — sve na jednom mestu.</p>
+    <a class="btn" href="${pageContext.request.contextPath}/ljubimci">Započni</a>
+  </div>
+  <div class="card" style="background:rgba(255,255,255,0.9)">
+    <img src="${pageContext.request.contextPath}/img/logo.png" alt="Ljubimci"
+         style="height:160px;display:block;margin:auto">
+  </div>
+</section>
+
+<section class="grid">
+  <div class="card"><h3>😊 Ljubimci</h3><p>Dodaj i uređuj ljubimce.</p></div>
+  <div class="card"><h3>📅 Pregledi</h3><p>Zakaži i izmeni termine.</p></div>
+  <div class="card"><h3>💬 Poruke</h3><p>Razmenjujte poruke sa veterinarom.</p></div>
+</section>
+
+<hr class="soft">
+
+<h2 class="section-title">Galerija</h2>
+
+<div class="gallery">
+  <div class="tile">
+    <img src="${pageContext.request.contextPath}/img/pas.png" alt="Pas">
+  </div>
+  <div class="tile">
+    <img src="${pageContext.request.contextPath}/img/macka.png" alt="Mačka">
+  </div>
+  <div class="tile">
+    <img src="${pageContext.request.contextPath}/img/kornjaca.png" alt="Kornjača">
+  </div>
+  <div class="tile">
+    <img src="${pageContext.request.contextPath}/img/kameleon.png" alt="Kameleon">
+  </div>
+</div>
+
+<footer>
+  Veterinarska stanica „Vaš ljubimac“ © 2025 <br>
+  📧 <a href="mailto:info@vasljubimac.rs">info@vasljubimac.rs</a> |
+  ☎️ <a href="tel:+38111123456">+381 11 123 456</a>
+</footer>
+
+<script src="${pageContext.request.contextPath}/js/auth.js"></script>
+<script>
+  function updateHeaderAndMenus(){
+    if (window.paintUserInfoHeader) window.paintUserInfoHeader();
+    var reg = document.getElementById('navRegistracija');
+    if (reg) {
+      var token = localStorage.getItem('jwt');
+      reg.style.display = token ? 'none' : 'inline';
+    }
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', updateHeaderAndMenus);
+  } else {
+    updateHeaderAndMenus();
+  }
+</script>
+</body>
+</html>

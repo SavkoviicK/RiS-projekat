@@ -1,0 +1,48 @@
+package com.veterinarska.stanica.controller;
+
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import java.util.List;
+
+import com.veterinarska.stanica.model.Ljubimac;
+import com.veterinarska.stanica.repository.LjubimacRepository;
+import com.veterinarska.stanica.repository.KorisnikRepository;
+
+import jakarta.validation.Valid;
+import org.springframework.validation.BindingResult;
+
+
+@RestController
+@RequestMapping("/api/ljubimci")
+public class LjubimacController {
+
+    private final LjubimacRepository repo;
+    private final KorisnikRepository korisnikRepo;
+
+    public LjubimacController(LjubimacRepository repo, KorisnikRepository korisnikRepo) {
+        this.repo = repo;
+        this.korisnikRepo = korisnikRepo;
+    }
+
+    // Dodavanje ljubimca (vlasnikId dolazi iz JSON-a)
+    @PostMapping
+    public ResponseEntity<?> dodaj(@Valid @RequestBody Ljubimac l, BindingResult result) {
+        if (result.hasErrors()) return ResponseEntity.badRequest().body(result.getAllErrors());
+        if (l.getVlasnik() == null || l.getVlasnik().getId() == null)
+            return ResponseEntity.badRequest().body("Nedostaje vlasnik_id");
+
+        var vlasnik = korisnikRepo.findById(l.getVlasnik().getId())
+                .orElseThrow(() -> new RuntimeException("Vlasnik ne postoji"));
+        l.setVlasnik(vlasnik);
+
+        var sacuvan = repo.save(l);
+        return ResponseEntity.ok(sacuvan);
+    }
+
+
+    // Svi ljubimci
+    @GetMapping
+    public List<Ljubimac> svi() {
+        return repo.findAll();
+    }
+}

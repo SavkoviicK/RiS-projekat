@@ -1,0 +1,37 @@
+package com.veterinarska.stanica.controller;
+
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import com.veterinarska.stanica.service.IzvestajService;
+
+@RestController
+@RequestMapping("/api/izvestaji")
+public class IzvestajController {
+
+    private final IzvestajService service;
+
+    public IzvestajController(IzvestajService service) {
+        this.service = service;
+    }
+
+    // PDF: pregledi po danu
+    @GetMapping(value = "/pregledi-po-danu.pdf", produces = MediaType.APPLICATION_PDF_VALUE)
+    public ResponseEntity<byte[]> preglediPoDanu() throws Exception {
+        byte[] pdf = service.generisiPregledePoDanu();
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=pregledi-po-danu.pdf")
+                .contentType(MediaType.APPLICATION_PDF)
+                .body(pdf);
+    }
+
+    @GetMapping(value="/pregledi-po-veterinaru.pdf", produces = MediaType.APPLICATION_PDF_VALUE)
+    public ResponseEntity<byte[]> preglediPoVeterinaru() throws Exception {
+        byte[] pdf = izvestajService.pdfPreglediPoVeterinaru();
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=pregledi-po-veterinaru.pdf")
+                .body(pdf);
+    }
+}

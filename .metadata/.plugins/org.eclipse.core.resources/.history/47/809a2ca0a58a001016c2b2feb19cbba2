@@ -1,0 +1,61 @@
+package com.veterinarska.stanica.controller;
+
+import com.veterinarska.stanica.dto.PorukaDTO;
+import com.veterinarska.stanica.mapper.AppMapper;
+import com.veterinarska.stanica.model.Poruka;
+import com.veterinarska.stanica.repository.KorisnikRepository;
+import com.veterinarska.stanica.repository.PorukaRepository;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/poruke")
+public class PorukaController {
+
+    private final PorukaRepository repo;
+    private final KorisnikRepository korisnikRepo;
+
+    public PorukaController(PorukaRepository repo, KorisnikRepository korisnikRepo) {
+        this.repo = repo;
+        this.korisnikRepo = korisnikRepo;
+    }
+
+    public record PorukaReq(Long primalacId, String sadrzaj) {}
+
+    @PostMapping
+    public ResponseEntity<?> posalji(@RequestBody PorukaReq req, Authentication auth) {
+        if (req == null || req.primalacId() == null) {
+            return ResponseEntity.badRequest().body("Nedostaje primalac_id");
+        }
+        if (req.sadrzaj() == null || req.sadrzaj().isBlank()) {
+            return ResponseEntity.badRequest().body("Nedostaje sadrzaj");
+        }
+
+        var posiljalac = korisnikRepo.findByEmail(auth.getName())
+                .orElseThrow(() -> new RuntimeException("Posiljalac (ulogovani) ne postoji"));
+
+        var primalac = korisnikRepo.findById(req.primalacId())
+                .orElseThrow(() -> new RuntimeException("Primalac ne postoji"));
+
+        var p = new Poruka();
+        p.setPosiljalac(posiljalac);
+        p.setPrimalac(primalac);
+        p.setSadrzaj(req.sadrzaj());
+
+        var sacuvana = repo.save(p);
+        return ResponseEntity.ok(AppMapper.toDTO(sacuvana));
+    }
+
+    @GetMapping
+    public List<PorukaDTO> moje(Authentication auth) {
+        var ja = korisnikRepo.findByEmail(auth.getName()).orElseThrow();
+        return repo.findAll().stream()
+                .filter(p -> p.getPosiljalac().getId().equals(ja.getId())
+                          || p.getPrimalac().getId().equals(ja.getId()))
+                .map(AppMapper::toDTO)
+                .toList();
+    }
+}

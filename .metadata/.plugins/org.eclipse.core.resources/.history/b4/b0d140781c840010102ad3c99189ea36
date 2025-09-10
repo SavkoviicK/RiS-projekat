@@ -1,0 +1,72 @@
+package com.veterinarska.stanica.controller;
+
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import java.util.List;
+
+import com.veterinarska.stanica.model.Ljubimac;
+import com.veterinarska.stanica.repository.LjubimacRepository;
+import com.veterinarska.stanica.repository.KorisnikRepository;
+
+import jakarta.validation.Valid;
+import org.springframework.validation.BindingResult;
+import static com.veterinarska.stanica.mapper.AppMapper.toDTO;
+import com.veterinarska.stanica.dto.LjubimacDTO;
+
+@RestController
+@RequestMapping("/api/ljubimci")
+public class LjubimacController {
+
+    private final LjubimacRepository repo;
+    private final KorisnikRepository korisnikRepo;
+
+    public LjubimacController(LjubimacRepository repo, KorisnikRepository korisnikRepo) {
+        this.repo = repo;
+        this.korisnikRepo = korisnikRepo;
+    }
+
+    // Dodavanje ljubimca (vlasnikId dolazi iz JSON-a)
+    @PostMapping
+    public ResponseEntity<?> dodaj(@Valid @RequestBody Ljubimac l, BindingResult result) {
+        if (result.hasErrors()) return ResponseEntity.badRequest().body(result.getAllErrors());
+        if (l.getVlasnik() == null || l.getVlasnik().getId() == null)
+            return ResponseEntity.badRequest().body("Nedostaje vlasnik_id");
+
+        var vlasnik = korisnikRepo.findById(l.getVlasnik().getId())
+                .orElseThrow(() -> new RuntimeException("Vlasnik ne postoji"));
+        l.setVlasnik(vlasnik);
+
+        var sacuvan = repo.save(l);
+        return ResponseEntity.ok(sacuvan);
+    }
+
+
+    // Svi ljubimci
+    @GetMapping
+    public List<Ljubimac> svi() {
+        return repo.findAll();
+    }
+    
+    @PutMapping("/{id}")
+    public ResponseEntity<?> izmeni(@PathVariable Long id, @Valid @RequestBody Ljubimac l, BindingResult result) {
+        if (result.hasErrors()) return ResponseEntity.badRequest().body(result.getAllErrors());
+        return repo.findById(id)
+            .map(postojeci -> {
+                postojeci.setIme(l.getIme());
+                postojeci.setVrsta(l.getVrsta());
+                postojeci.setRasa(l.getRasa());
+                postojeci.setPol(l.getPol());
+                postojeci.setNapomena(l.getNapomena());
+                return ResponseEntity.ok(repo.save(postojeci));
+            })
+            .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<?> obrisi(@PathVariable Long id) {
+        if (!repo.existsById(id)) return ResponseEntity.notFound().build();
+        repo.deleteById(id);
+        return ResponseEntity.noContent().build();
+    }
+
+}

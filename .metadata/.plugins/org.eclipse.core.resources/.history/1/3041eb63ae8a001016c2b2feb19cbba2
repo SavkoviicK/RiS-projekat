@@ -1,0 +1,176 @@
+<%@ page contentType="text/html; charset=UTF-8" %>
+<!DOCTYPE html>
+<html lang="sr">
+<head>
+  <meta charset="UTF-8">
+  <title>Prijatelji</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin:0; background:#f7f9fb; }
+    .wrap { max-width: 900px; margin: 24px auto; padding: 0 16px; }
+    table { width: 100%; border-collapse: collapse; background:#fff; border:1px solid #e6e6e6; }
+    th, td { padding: 10px; border-top: 1px solid #eee; text-align: left; }
+    thead tr { background: #f2f4f7; }
+    h1 { margin: 0 0 12px 0; }
+    h2 { margin: 24px 0 10px; }
+    .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+    input[type=number]{ padding:8px; border:1px solid #ccc; border-radius:6px; }
+    .btn { padding: 6px 12px; border: none; border-radius: 6px; cursor: pointer; }
+    .btn-accept { background: #4CAF50; color: #fff; }
+    .btn-decline { background: #f44336; color: #fff; }
+    .btn-send { background: #0b5ed7; color:#fff; }
+    .muted { color:#666; font-size:.92em; }
+    .note { margin:6px 0 14px; }
+  </style>
+  <script defer src="/js/auth.js"></script>
+</head>
+<body>
+<div class="wrap">
+  <h1>👥 Prijatelji</h1>
+
+  <!-- Slanje zahteva (ručno po ID-u) -->
+  <div class="note muted">
+    Vlasnik može slati poruke vlasniku samo ako su prijatelji. Sa veterinarom i adminom može bez prijateljstva.
+  </div>
+  <form class="row" id="frmZahtev" action="/api/prijatelji/zahtev" method="post" onsubmit="return posaljiZahtev(event)">
+    <label for="primaocId"><strong>Pošalji zahtev za prijateljstvo (ID primaoca):</strong></label>
+    <input id="primaocId" name="primaocId" type="number" placeholder="npr. 2" required />
+    <button class="btn btn-send" type="submit">Pošalji zahtev</button>
+    <span id="msgZahtev" class="muted"></span>
+  </form>
+
+  <h2>Zahtevi za prijateljstvo</h2>
+  <table>
+    <thead>
+      <tr><th>Od</th><th>Akcija</th></tr>
+    </thead>
+    <tbody id="tbodyZahtevi">
+      <tr><td colspan="2" class="muted">Učitavam…</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Moji prijatelji</h2>
+  <table>
+    <thead>
+      <tr><th>Ime</th><th>Email</th><th>Poruke</th></tr>
+    </thead>
+    <tbody id="tbodyPrijatelji">
+      <tr><td colspan="3" class="muted">Učitavam…</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<script>
+// helper za Authorization header (auth.js obično setuje jwt u localStorage)
+function authHeader(){
+  const t = localStorage.getItem('jwt');
+  return t ? { 'Authorization':'Bearer '+t } : {};
+}
+
+async function posaljiZahtev(ev){
+  ev.preventDefault();
+  const el = document.getElementById('primaocId');
+  const msg = document.getElementById('msgZahtev');
+  msg.textContent = 'Šaljem…';
+  try{
+    const url = '/api/prijatelji/zahtev?primaocId='+encodeURIComponent(el.value);
+    const res = await fetch(url, { method:'POST', headers: authHeader() });
+    if(!res.ok) throw new Error(await res.text());
+    msg.textContent = 'Poslato ✅';
+    el.value = '';
+    await ucitajSve(); // osveži pending listu
+  }catch(e){
+    msg.textContent = 'Greška: ' + (e.message||'');
+  }
+  return false;
+}
+
+async function ucitajZahteve(){
+  const tbody = document.getElementById('tbodyZahtevi');
+  try{
+    const res = await fetch('/api/prijatelji/na-cekaju', { headers: authHeader() });
+    if(!res.ok) throw new Error(await res.text());
+    const list = await res.json();
+
+    tbody.innerHTML = '';
+    if(!Array.isArray(list) || list.length===0){
+      tbody.innerHTML = '<tr><td colspan="2">Nema novih zahteva</td></tr>';
+      return;
+    }
+
+    for(const z of list){
+      const tr = document.createElement('tr');
+      const od = (z.posiljalac?.ime || '') + (z.posiljalac?.email ? ' ('+z.posiljalac.email+')' : '');
+      tr.innerHTML = `
+        <td>${od}</td>
+        <td>
+          <form method="post" action="/api/prijatelji/odgovor" onsubmit="return odgovor(${z.id}, true, event)" style="display:inline">
+            <button class="btn btn-accept" type="submit">Prihvati</button>
+          </form>
+          <form method="post" action="/api/prijatelji/odgovor" onsubmit="return odgovor(${z.id}, false, event)" style="display:inline">
+            <button class="btn btn-decline" type="submit">Odbij</button>
+          </form>
+        </td>`;
+      tbody.appendChild(tr);
+    }
+  }catch(e){
+    tbody.innerHTML = '<tr><td colspan="2" class="muted">Greška pri učitavanju</td></tr>';
+  }
+}
+
+async function odgovor(zahtevId, prihvati, ev){
+  ev.preventDefault();
+  try{
+    const url = `/api/prijatelji/odgovor?zahtevId=${zahtevId}&prihvati=${prihvati}`;
+    const res = await fetch(url, { method:'POST', headers: authHeader() });
+    if(!res.ok) throw new Error(await res.text());
+    await ucitajSve();
+  }catch(e){
+    alert('Greška: '+(e.message||''));
+  }
+  return false;
+}
+
+async function ucitajPrijatelje(){
+  const tbody = document.getElementById('tbodyPrijatelji');
+  try{
+    const res = await fetch('/api/prijatelji', { headers: authHeader() });
+    if(!res.ok) throw new Error(await res.text());
+    const list = await res.json();
+
+    tbody.innerHTML = '';
+    if(!Array.isArray(list) || list.length===0){
+      tbody.innerHTML = '<tr><td colspan="3">Još nemaš prijatelja</td></tr>';
+      return;
+    }
+
+    for(const f of list){
+      const ime = f.ime || f.naziv || '';
+      const email = f.email || '';
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${ime}</td>
+        <td>${email}</td>
+        <td><a class="btn btn-send" href="/poruke">Otvori chat</a></td>`;
+      tbody.appendChild(tr);
+    }
+  }catch(e){
+    tbody.innerHTML = '<tr><td colspan="3" class="muted">Greška pri učitavanju</td></tr>';
+  }
+}
+
+async function ucitajSve(){
+  await Promise.all([ ucitajZahteve(), ucitajPrijatelje() ]);
+}
+
+window.addEventListener('load', ()=>{
+  // ako nema tokena – link za prijavu
+  if(!localStorage.getItem('jwt')){
+    document.getElementById('tbodyZahtevi').innerHTML = '<tr><td colspan="2">Prijavite se.</td></tr>';
+    document.getElementById('tbodyPrijatelji').innerHTML = '<tr><td colspan="3">Prijavite se.</td></tr>';
+    return;
+  }
+  ucitajSve();
+});
+</script>
+</body>
+</html>

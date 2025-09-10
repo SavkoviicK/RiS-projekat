@@ -1,0 +1,31 @@
+package com.veterinarska.stanica.controller;
+
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import java.util.List;
+
+import com.veterinarska.stanica.model.Usluga;
+import com.veterinarska.stanica.repository.UslugaRepository;
+
+@RestController
+@RequestMapping("/api/usluge")
+public class UslugaController {
+
+    private final UslugaRepository repo;
+
+    public UslugaController(UslugaRepository repo) {
+        this.repo = repo;
+    }
+
+    // Dodaj uslugu
+    @PostMapping
+    public ResponseEntity<Usluga> dodaj(@RequestBody Usluga u) {
+        return ResponseEntity.ok(repo.save(u));
+    }
+
+    // Sve usluge
+    @GetMapping
+    public List<Usluga> sve() {
+        return repo.findAll();
+    }
+}

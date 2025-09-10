@@ -1,0 +1,36 @@
+package com.veterinarska.stanica.controller;
+
+import com.veterinarska.stanica.model.Korisnik;
+import com.veterinarska.stanica.service.PrijateljiService;
+import com.veterinarska.stanica.repository.KorisnikRepository;
+import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.security.core.Authentication;
+
+@Controller
+public class PrijateljiPageController {
+
+    private final PrijateljiService prijateljiService;
+    private final KorisnikRepository korisnikRepo;
+
+    public PrijateljiPageController(PrijateljiService prijateljiService,
+                                    KorisnikRepository korisnikRepo) {
+        this.prijateljiService = prijateljiService;
+        this.korisnikRepo = korisnikRepo;
+    }
+
+    @GetMapping("/prijatelji")
+    public String prikazi(Model model, Authentication auth) {
+        if (auth == null || auth.getName() == null) {
+            return "redirect:/prijava"; // ako nisi ulogovan, idi na login
+        }
+
+        var ja = korisnikRepo.findByEmail(auth.getName())
+                .orElseThrow(() -> new RuntimeException("Korisnik ne postoji"));
+
+        model.addAttribute("zahtevi", prijateljiService.pendingZa(ja.getId()));
+        model.addAttribute("prijatelji", prijateljiService.listaPrijatelja(ja.getId()));
+        return "prijatelji";
+    }
+}

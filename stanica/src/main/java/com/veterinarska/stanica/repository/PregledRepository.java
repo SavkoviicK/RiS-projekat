@@ -1,0 +1,23 @@
+package com.veterinarska.stanica.repository;
+
+import java.time.LocalDateTime;
+import java.util.List;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import com.veterinarska.stanica.model.Pregled;
+
+public interface PregledRepository extends JpaRepository<Pregled, Long> {
+
+    List<Pregled> findAllByLjubimac_Vlasnik_Email(String email);
+
+    List<Pregled> findAllByVeterinar_Email(String email);
+
+    List<Pregled> findAllByDatumPocetkaBetween(LocalDateTime start, LocalDateTime end);
+
+    List<Pregled> findAllByVeterinar_Id(Long veterinarId);
+    
+    List<Pregled> findAllByVeterinar_IdAndDatumPocetkaBetween(Long veterinarId,
+                                                              LocalDateTime start,
+                                                              LocalDateTime end);
+}

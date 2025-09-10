@@ -1,0 +1,519 @@
+<%@ page contentType="text/html; charset=UTF-8" isELIgnored="true" %>
+<!DOCTYPE html>
+<html lang="sr">
+<head>
+  <meta charset="UTF-8">
+  <title>Pregledi</title>
+  <style>
+    body{font-family:system-ui,Arial;margin:0;background:#f7f9fb}
+    header{display:flex;align-items:center;justify-content:space-between;gap:16px;
+           padding:16px 24px;background:#fff;border-bottom:1px solid #e6e6e6}
+    nav a{margin-right:12px;text-decoration:none;color:#0b5ed7}
+    .wrap{max-width:1100px;margin:24px auto;padding:0 16px}
+    table{width:100%;border-collapse:collapse;background:#fff;border:1px solid #e6e6e6}
+    th,td{padding:10px;border-top:1px solid #eee;text-align:left;vertical-align:top}
+    thead tr{background:#f2f4f7}
+    .muted{color:#6b7280}
+    button{background:#0b5ed7;color:#fff;border:none;border-radius:8px;padding:8px 12px;cursor:pointer}
+    button:disabled{opacity:.6;cursor:not-allowed}
+    input,select,textarea{padding:6px 8px;border:1px solid #dcdcdc;border-radius:8px}
+    .row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+    .card{background:#fff;border:1px solid #e6e6e6;border-radius:12px;padding:14px;margin:14px 0}
+    .danger{background:#dc2626}
+    .no-access{display:none;background:#fff;border:1px solid #e6e6e6;border-radius:12px;padding:32px;text-align:center}
+    .no-access img{max-width:220px;height:auto;display:block;margin:0 auto 16px}
+    .no-access h2{margin:8px 0 6px}
+    .no-access p{color:#666;margin:0 0 12px}
+  </style>
+</head>
+<body>
+<header>
+  <div style="display:flex;align-items:center;gap:12px">
+    <img src="/img/logo.png" alt="Logo" style="height:46px">
+    <strong>Veterinarska stanica</strong>
+  </div>
+  <nav>
+    <a href="/">Početna</a>
+    <a href="/ljubimci">Ljubimci</a>
+    <a href="/pregledi">Pregledi</a>
+    <a href="/poruke">Poruke</a>
+    <a id="navIzvestaji" href="/izvestaji" style="display:none">Izveštaji</a>
+  </nav>
+  <div id="userBox"><span id="userInfo"></span>
+    <button id="btnLogout" style="display:none;margin-left:8px">Odjava</button>
+  </div>
+</header>
+
+<div class="wrap">
+  <h1>📅 Pregledi</h1>
+  <div id="msg" class="muted" style="margin:8px 0 16px 0"></div>
+
+  <div id="noAccessPregledi" class="no-access">
+    <img src="/img/tuzna.png" alt="Nema pristup">
+    <h2>Morate biti prijavljeni</h2>
+    <p>Prijavite se da biste videli svoje preglede.</p>
+    <a class="btn" href="/prijava">Prijava</a>
+  </div>
+
+  <div id="privPregledi" style="display:none">
+
+    <div id="adminPanel" class="card" style="display:none">
+      <div class="row">
+        <label>Datum: <input id="inpDate" type="date"></label>
+        <label>Veterinar ID: <input id="inpVetId" type="number" style="width:120px"></label>
+        <button id="btnPoDanu">Prikaži za dan</button>
+        <button id="btnPoVet">Prikaži za veterinara</button>
+        <button id="btnSve">Sve (po ulozi)</button>
+      </div>
+    </div>
+
+    <div id="ownerPanel" class="card" style="display:none">
+      <h3 style="margin:0 0 8px 0">➕ Novi pregled (VLASNIK)</h3>
+      <div class="row">
+        <label>Ljubimac
+          <select id="selLjubimac" style="min-width:220px">
+            <option value="">— izaberi ljubimca —</option>
+          </select>
+        </label>
+
+        <label>Veterinar
+          <select id="selVeterinar" style="min-width:220px">
+            <option value="">— izaberi veterinara —</option>
+          </select>
+        </label>
+
+        <label>Usluga
+          <input id="npUslugaTxt" placeholder="npr. Vakcinacija, Kontrolni pregled" style="min-width:240px">
+        </label>
+
+        <label>Početak
+          <input id="npStart" type="datetime-local">
+        </label>
+
+        <input id="npNapomena" placeholder="Napomena" style="min-width:240px">
+        <button id="btnAdd">Sačuvaj</button>
+        <span id="addMsg" class="muted"></span>
+      </div>
+
+      <h4 style="margin:16px 0 8px 0">✏️ Izmeni termin (VLASNIK)</h4>
+      <div class="row">
+        <label>Pregled ID <input id="edId" type="number" style="width:100px"></label>
+        <label>Početak
+          <input id="edStart" type="datetime-local">
+        </label>
+        <input id="edNapomena" placeholder="Napomena" style="min-width:200px">
+        <button id="btnEdit">Izmeni</button>
+        <span id="editMsg" class="muted"></span>
+      </div>
+
+      <h4 style="margin:16px 0 8px 0">🗑 Otkazivanje (VLASNIK)</h4>
+      <div class="row">
+        <label>Pregled ID <input id="delId" type="number" style="width:100px"></label>
+        <button id="btnDel" class="danger">Otkaži</button>
+        <span id="delMsg" class="muted"></span>
+      </div>
+    </div>
+
+    <div id="vetPanel" class="card" style="display:none">
+      <h3 style="margin:0 0 8px 0">✅ Promeni status</h3>
+      <div class="row">
+        <label>Pregled ID <input id="stId" type="number" style="width:100px"></label>
+        <select id="stVal">
+          <option>ZAKAZAN</option>
+          <option>POTVRĐEN</option>
+          <option>OBAVLJEN</option>
+          <option>OTKAZAN</option>
+        </select>
+        <button id="btnStatus">Primeni</button>
+        <span id="stMsg" class="muted"></span>
+      </div>
+    </div>
+
+    <!-- Kartica za medicinski zapis (vidljiva samo veterinarima) -->
+    <div id="vetZapisiCard" class="card" style="display:none">
+      <h3 style="margin:0 0 8px 0">🩺 Medicinski zapis (posle statusa OBAVLJEN)</h3>
+      <div class="row">
+        <label>Pregled (obavljen)
+          <select id="mzPregledSelect" style="min-width:260px">
+            <option value="">— izaberi obavljen pregled —</option>
+          </select>
+        </label>
+        <label>Dijagnoza <input id="mzDijagnoza" placeholder="Obavezno" style="min-width:220px"></label>
+        <label>Terapija <input id="mzTerapija" placeholder="Opcionalno" style="min-width:220px"></label>
+        <button id="btnZapisi">Sačuvaj zapis</button>
+        <button id="btnKarton" style="display:none">Vidi karton</button>
+        <span id="mzMsg" class="muted"></span>
+      </div>
+    </div>
+
+    <h2 style="margin-top:20px">📋 Pregledi</h2>
+    <table id="tbl">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Ljubimac</th>
+          <th>Veterinar</th>
+          <th>Usluga</th>
+          <th>Početak</th>
+          <th>Kraj</th>
+          <th>Status</th>
+          <th>Napomena</th>
+        </tr>
+      </thead>
+      <tbody id="rows">
+        <tr><td colspan="8">Učitavam…</td></tr>
+      </tbody>
+    </table>
+
+  </div>
+</div>
+
+<script src="/js/auth.js"></script>
+<script>
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', paintUserInfoHeader);
+  } else {
+    paintUserInfoHeader();
+  }
+</script>
+
+<script>
+// ------------------ Uloge / paneli ------------------
+(function toggleRolePanels(){
+  try{
+    const roles = (JSON.parse(localStorage.getItem('roles')||'[]')||[]).map(r=>r.authority||r||'');
+    const isAdmin = roles.includes('ROLE_ADMIN') || roles.includes('ADMIN');
+    const isVet   = roles.includes('ROLE_VETERINAR') || roles.includes('VETERINAR');
+    document.getElementById('ownerPanel').style.display =
+      (roles.includes('ROLE_VLASNIK') || roles.includes('VLASNIK')) ? 'block' : 'none';
+    document.getElementById('vetPanel').style.display = isVet ? 'block' : 'none';
+    document.getElementById('adminPanel').style.display = isAdmin ? 'block' : 'none';
+    document.getElementById('vetZapisiCard').style.display = isVet ? 'block' : 'none';
+  }catch(e){}
+})();
+
+function fmt(iso){ if(!iso) return ''; const d=new Date(iso); return isNaN(d)?iso:d.toLocaleString(); }
+function showMsg(id, txt){ const el=document.getElementById(id); if(el) el.textContent=txt||''; }
+async function fetchJSON(url, opts, msgId){
+  const res = await fetch(url, opts||{});
+  if(!res.ok){
+    const t = await res.text();
+    showMsg(msgId, t||('Greška ('+res.status+')'));
+    throw new Error(t||('HTTP '+res.status));
+  }
+  return res.json();
+}
+function safe(v){ return (v===null||v===undefined)?'':String(v); }
+
+// ---- Zabrana prošlih termina (UI nivo) ----
+function nowLocalForInput(){
+  const d = new Date(), pad = n=>String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+function enforceMinNow(inputEl, msgElId){
+  if(!inputEl) return;
+  const min = nowLocalForInput();
+  inputEl.min = min;
+  inputEl.addEventListener('change', ()=>{
+    if(inputEl.value && inputEl.value < min){
+      inputEl.value = '';
+      showMsg(msgElId, 'Termin ne može biti u prošlosti.');
+    } else {
+      showMsg(msgElId, '');
+    }
+  });
+}
+
+// ------------------ Tabela pregleda ------------------
+async function fetchAndRender(url){
+  const rows = document.getElementById('rows');
+  const priv = document.getElementById('privPregledi');
+
+  if(!localStorage.getItem('jwt')){
+    document.getElementById('noAccessPregledi').style.display='block';
+    if (priv) priv.style.display='none';
+    return;
+  }
+
+  rows.innerHTML='<tr><td colspan="8">Učitavam…</td></tr>';
+  try{
+    const data = await fetchJSON(url,{headers:authHeader()}, 'msg');
+    if (priv) priv.style.display='';
+
+    if(!Array.isArray(data)||data.length===0){
+      rows.innerHTML='<tr><td colspan="8">Nema termina.</td></tr>';
+      showMsg('msg','');
+      return;
+    }
+    rows.innerHTML = data.map(p=>(
+      '<tr>'
+        + `<td>${safe(p.id)}</td>`
+        + `<td>${safe(p.ljubimacIme)}</td>`
+        + `<td>${safe(p.veterinarIme)}</td>`
+        + `<td>${safe(p.uslugaNaziv)}</td>`
+        + `<td>${safe(p.datumPocetka? new Date(p.datumPocetka).toLocaleString(): '')}</td>`
+        + `<td>${safe(p.datumZavrsetka? new Date(p.datumZavrsetka).toLocaleString(): '')}</td>`
+        + `<td>${safe(p.status)}</td>`
+        + `<td>${safe(p.napomena)}</td>`
+      + '</tr>'
+    )).join('');
+    showMsg('msg','');
+  }catch(_){
+    if (priv) priv.style.display='none';
+    rows.innerHTML='';
+  }
+}
+async function loadAll(){ await fetchAndRender('/api/pregledi'); }
+
+// ------------------ Dropdown punjenje ------------------
+async function loadMyPets(){
+  const sel = document.getElementById('selLjubimac'); if (!sel) return;
+  sel.innerHTML='<option>Učitavam…</option>';
+  try{
+    const data = await fetchJSON('/api/ljubimci',{headers:authHeader()}, 'msg');
+    sel.innerHTML = (Array.isArray(data)&&data.length)
+      ? '<option value="">— izaberi ljubimca —</option>' + data.map(x=>`<option value="${x.id}">${x.ime}</option>`).join('')
+      : '<option value="">Nema ljubimaca</option>';
+  }catch{ sel.innerHTML='<option value="">Greška</option>'; }
+}
+
+async function loadVets(){
+  const sel = document.getElementById('selVeterinar'); if (!sel) return;
+  sel.innerHTML='<option>Učitavam…</option>';
+  try{
+    const data = await fetchJSON('/api/korisnici/veterinari',{headers:authHeader()}, 'msg');
+    sel.innerHTML = (Array.isArray(data)&&data.length)
+      ? '<option value="">— izaberi veterinara —</option>' + data.map(x=>`<option value="${x.id}">${x.ime} ${x.prezime}</option>`).join('')
+      : '<option value="">Nema veterinara</option>';
+  }catch{ sel.innerHTML='<option value="">Greška</option>'; }
+}
+
+// ------------------ Medicinski zapisi (VETERINAR) ------------------
+async function loadEligibleObavljeni(){
+  const sel = document.getElementById('mzPregledSelect');
+  if(!sel) return;
+  sel.innerHTML = '<option value="">Učitavam…</option>';
+  try{
+    const data = await fetchJSON('/api/medicinski-zapisi/moji-ljubimci-za-izvestaj',
+                                 { headers: authHeader() }, 'mzMsg');
+    const list = Array.isArray(data) ? data : [];
+    if(list.length===0){
+      sel.innerHTML = '<option value="">Nema obavljenih pregleda</option>';
+      document.getElementById('btnKarton').style.display='none';
+      return;
+    }
+    sel.innerHTML = '<option value="">— izaberi obavljen pregled —</option>' +
+      list.map(x => `<option value="${x.pregledId}">${x.ljubimacIme}${x.vlasnik?(' ('+x.vlasnik+')'):''}</option>`).join('');
+  }catch(_){
+    sel.innerHTML = '<option value="">Greška pri učitavanju</option>';
+  }
+}
+
+// Pomoćno: na osnovu ID pregleda nađi ljubimacId (iz /api/pregledi)
+async function resolveLjubimacIdByPregledId(pregledId){
+  const data = await fetchJSON('/api/pregledi', { headers: authHeader() }, 'mzMsg');
+  const found = Array.isArray(data) ? data.find(p => Number(p.id) === Number(pregledId)) : null;
+  return found ? found.ljubimacId : null;
+}
+
+// ------------------ Init ------------------
+window.addEventListener('load', ()=>{
+  const token = localStorage.getItem('jwt');
+  const noacc = document.getElementById('noAccessPregledi');
+  const priv  = document.getElementById('privPregledi');
+
+  if (!token){
+    if (noacc) noacc.style.display = 'block';
+    if (priv)  priv.style.display  = 'none';
+    return;
+  }
+  if (noacc) noacc.style.display = 'none';
+  if (priv)  priv.style.display  = 'block';
+
+  // UI zabrana prošlosti + poruka (za vlasnika)
+  enforceMinNow(document.getElementById('npStart'), 'addMsg');
+  enforceMinNow(document.getElementById('edStart'), 'editMsg');
+
+  loadAll();
+  loadMyPets();
+  loadVets();
+  loadEligibleObavljeni();
+});
+
+// ------------------ AKCIJE VLASNIKA ------------------ (ne diramo postojeće)
+// DODAJ
+document.getElementById('btnAdd')?.addEventListener('click', async ()=>{
+  const out=document.getElementById('addMsg');
+  try{
+    const uslTxt = (document.getElementById('npUslugaTxt').value||'').trim();
+    const ljubId = Number(document.getElementById('selLjubimac').value);
+    const vetId  = Number(document.getElementById('selVeterinar').value);
+    const start  = (document.getElementById('npStart').value||'').trim();
+
+    if(!ljubId){ out.textContent='Izaberite ljubimca.'; return; }
+    if(!vetId){ out.textContent='Izaberite veterinara.'; return; }
+    if(!uslTxt){ out.textContent='Unesite naziv usluge.'; return; }
+    if(!start){ out.textContent='Izaberite datum i vreme.'; return; }
+    if (new Date(start) < new Date()){ out.textContent='Termin ne može biti u prošlosti.'; return; }
+
+    const res = await fetchJSON('/api/usluge/resolve?naziv='+encodeURIComponent(uslTxt),{ headers: authHeader() }, 'addMsg');
+    const uslugaId = res.id;
+
+    const body={
+      ljubimac:{id:ljubId},
+      veterinar:{id:vetId},
+      usluga:{id:Number(uslugaId)},
+      datumPocetka:start,
+      datumZavrsetka:null,
+      napomena:(document.getElementById('npNapomena').value||null)
+    };
+
+    await fetchJSON('/api/pregledi',{
+      method:'POST',
+      headers:{...authHeader(),'Content-Type':'application/json'},
+      body:JSON.stringify(body)
+    }, 'addMsg');
+
+    out.textContent='Sačuvano ✅'; await loadAll();
+  }catch(e){ out.textContent = e.message || 'Greška pri čuvanju.'; }
+});
+
+// IZMENI (PUT /api/pregledi/{id})
+document.getElementById('btnEdit')?.addEventListener('click', async ()=>{
+  const out = document.getElementById('editMsg');
+  const id  = Number(document.getElementById('edId').value);
+  const start = (document.getElementById('edStart').value||'').trim();
+  const napomena = (document.getElementById('edNapomena').value||'').trim();
+
+  if(!id){ out.textContent='Unesite ID pregleda.'; return; }
+  if(!start && !napomena){ out.textContent='Unesite bar jedno polje (početak ili napomena).'; return; }
+  if (start && new Date(start) < new Date()){ out.textContent='Termin ne može biti u prošlosti.'; return; }
+
+  const body = {};
+  if (start){ body.datumPocetka = start; }
+  if (napomena){ body.napomena = napomena; }
+
+  try{
+    const res = await fetch(`/api/pregledi/${id}`,{
+      method:'PUT',
+      headers:{...authHeader(),'Content-Type':'application/json'},
+      body:JSON.stringify(body)
+    });
+    if (res.ok){ out.textContent='Izmenjeno ✅'; await loadAll(); return; }
+    if (res.status === 400){ out.textContent='Termin ne može biti u prošlosti.'; return; }
+    if (res.status === 403){ out.textContent='Nemate dozvolu nad ovim pregledom.'; return; }
+    if (res.status === 404){ out.textContent='Pregled sa tim ID ne postoji.'; return; }
+    out.textContent = 'Greška ('+res.status+').';
+  }catch(e){ out.textContent = e.message || 'Greška pri izmeni.'; }
+});
+
+// OTKAŽI (DELETE /api/pregledi/{id})
+document.getElementById('btnDel')?.addEventListener('click', async ()=>{
+  const out = document.getElementById('delMsg');
+  const id  = Number(document.getElementById('delId').value);
+  if(!id){ out.textContent='Unesite ID pregleda.'; return; }
+  if(!confirm('Da li sigurno želite da otkažete pregled #'+id+'?')) return;
+
+  try{
+    const res = await fetch(`/api/pregledi/${id}`,{ method:'DELETE', headers:authHeader() });
+    if (res.status === 204){ out.textContent='Otkazano ✅'; await loadAll(); return; }
+    if (res.status === 403){ out.textContent='Nemate dozvolu da otkažete ovaj pregled.'; return; }
+    if (res.status === 404){ out.textContent='Pregled sa tim ID ne postoji.'; return; }
+    const txt = await res.text();
+    out.textContent = txt || ('Greška ('+res.status+').');
+  }catch(e){ out.textContent = e.message || 'Greška pri otkazivanju.'; }
+});
+
+// ------------------ PROMENA STATUSA (VETERINAR/ADMIN) ------------------
+document.getElementById('btnStatus')?.addEventListener('click', async ()=>{
+  const out = document.getElementById('stMsg');
+  const id  = Number(document.getElementById('stId').value);
+  const val = (document.getElementById('stVal').value||'').trim();
+
+  if(!id){ out.textContent='Unesite ID pregleda.'; return; }
+  if(!val){ out.textContent='Izaberite status.'; return; }
+
+  try{
+    const res = await fetch(`/api/pregledi/${id}/status`,{
+      method:'PATCH',
+      headers:{...authHeader(),'Content-Type':'application/json'},
+      body:JSON.stringify({status:val})
+    });
+    if (res.ok){
+      out.textContent = 'Status promenjen ✅';
+      await loadAll();
+      if (val === 'OBAVLJEN'){
+        await loadEligibleObavljeni();
+        showMsg('mzMsg', 'Možete dodati medicinski zapis za obavljeni pregled.');
+      }
+      return;
+    }
+    if (res.status === 400){ out.textContent = 'Neispravan status ili zahtev.'; return; }
+    if (res.status === 403){ out.textContent = 'Nemate dozvolu da menjate status.'; return; }
+    if (res.status === 404){ out.textContent = 'Pregled sa tim ID ne postoji.'; return; }
+    out.textContent = 'Greška ('+res.status+').';
+  }catch(e){
+    out.textContent = e.message || 'Greška pri promeni statusa.';
+  }
+});
+
+// ------------------ SAČUVAJ MEDICINSKI ZAPIS ------------------
+const btnKarton = document.getElementById('btnKarton');
+const selPregled = document.getElementById('mzPregledSelect');
+
+selPregled?.addEventListener('change', ()=>{
+  // pokaži dugme čim je nešto izabrano; navigacija će validirati ID
+  btnKarton.style.display = selPregled.value ? 'inline-block' : 'none';
+  // zapamti trenutno izabrani pregledId u data atribut
+  btnKarton.dataset.pregledId = selPregled.value || '';
+});
+
+document.getElementById('btnZapisi')?.addEventListener('click', async ()=>{
+  const out = document.getElementById('mzMsg');
+  const pregledId = Number(document.getElementById('mzPregledSelect').value);
+  const dijagnoza = (document.getElementById('mzDijagnoza').value||'').trim();
+  const terapija  = (document.getElementById('mzTerapija').value||'').trim();
+
+  if(!pregledId){ out.textContent='Izaberite obavljen pregled.'; return; }
+  if(!dijagnoza){ out.textContent='Unesite dijagnozu.'; return; }
+
+  try{
+    const res = await fetch('/api/medicinski-zapisi',{
+      method:'POST',
+      headers:{...authHeader(),'Content-Type':'application/json'},
+      body:JSON.stringify({ pregledId, dijagnoza, terapija: terapija || null })
+    });
+    if (res.ok){
+      out.textContent='Zapis sačuvan ✅';
+      document.getElementById('mzDijagnoza').value='';
+      document.getElementById('mzTerapija').value='';
+      // omogući dugme “Vidi karton” za upravo odabrani pregled
+      btnKarton.style.display = 'inline-block';
+      btnKarton.dataset.pregledId = String(pregledId);
+      return;
+    }
+    if (res.status === 400){ out.textContent='Podaci nisu prošli validaciju.'; return; }
+    if (res.status === 403){ out.textContent='Nemate dozvolu za ovu akciju.'; return; }
+    if (res.status === 404){ out.textContent='Pregled nije pronađen.'; return; }
+    out.textContent='Greška ('+res.status+').';
+  }catch(e){
+    out.textContent = e.message || 'Greška pri čuvanju zapisa.';
+  }
+});
+
+// Klik na “Vidi karton” -> pronađi ljubimacId i otvori /karton
+btnKarton?.addEventListener('click', async ()=>{
+  const out = document.getElementById('mzMsg');
+  const pregledId = Number(btnKarton.dataset.pregledId || selPregled.value || 0);
+  if(!pregledId){ out.textContent = 'Izaberite pregled.'; return; }
+  try{
+    const ljubimacId = await resolveLjubimacIdByPregledId(pregledId);
+    if(!ljubimacId){ out.textContent='Nije moguće odrediti ljubimca za taj pregled.'; return; }
+    window.location.href = '/karton?ljubimacId=' + encodeURIComponent(ljubimacId);
+  }catch(e){
+    out.textContent = e.message || 'Greška pri otvaranju kartona.';
+  }
+});
+</script>
+</body>
+</html>

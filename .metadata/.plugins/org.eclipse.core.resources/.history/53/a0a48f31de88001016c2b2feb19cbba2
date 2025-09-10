@@ -1,0 +1,246 @@
+<%@ page contentType="text/html; charset=UTF-8" %>
+<!DOCTYPE html>
+<html lang="sr">
+<head>
+  <meta charset="UTF-8">
+  <title>Pregledi</title>
+  <style>
+    body{font-family:system-ui,Arial;margin:0;background:#f7f9fb}
+    header{display:flex;align-items:center;justify-content:space-between;gap:16px;
+           padding:16px 24px;background:#fff;border-bottom:1px solid #e6e6e6}
+    nav a{margin-right:12px;text-decoration:none;color:#0b5ed7}
+    .wrap{max-width:1100px;margin:24px auto;padding:0 16px}
+    table{width:100%;border-collapse:collapse;background:#fff;border:1px solid #e6e6e6}
+    th,td{padding:10px;border-top:1px solid #eee;text-align:left;vertical-align:top}
+    thead tr{background:#f2f4f7}
+    .muted{color:#6b7280}
+    button{background:#0b5ed7;color:#fff;border:none;border-radius:8px;padding:8px 12px;cursor:pointer}
+    button:disabled{opacity:.6;cursor:not-allowed}
+    input,select{padding:6px 8px;border:1px solid #dcdcdc;border-radius:8px}
+    .row-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  </style>
+</head>
+<body>
+<header>
+  <div style="display:flex;align-items:center;gap:12px">
+    <img src="/img/logo.png" alt="Logo" style="height:46px">
+    <strong>Veterinarska stanica</strong>
+  </div>
+  <nav>
+    <a href="/">Početna</a>
+    <a href="/ljubimci">Ljubimci</a>
+    <a href="/pregledi">Pregledi</a>
+    <a href="/poruke">Poruke</a>
+    <a id="navIzvestaji" href="/izvestaji" style="display:none">Izveštaji</a>
+    <a href="/prijava">Prijava</a>
+  </nav>
+  <div id="userBox"><span id="userInfo"></span>
+    <button id="btnLogout" style="display:none;margin-left:8px">Odjava</button>
+  </div>
+</header>
+
+<div class="wrap">
+  <h1>📅 Pregledi</h1>
+  <div id="msg" class="muted" style="margin:8px 0 16px 0"></div>
+
+  <!-- Filteri -->
+  <div style="margin:12px 0; display:flex; gap:12px; align-items:center; flex-wrap:wrap">
+    <label>Datum: <input id="inpDate" type="date"></label>
+
+    <!-- Ovaj deo (po veterinaru) prikaži samo ADMIN/VETERINAR -->
+    <span id="fltVet" style="display:none">
+      <label>Veterinar ID: <input id="inpVetId" type="number" style="width:120px"></label>
+      <button id="btnPoVet">Prikaži za veterinara</button>
+    </span>
+
+    <button id="btnPoDanu">Prikaži za dan</button>
+    <button id="btnSve">Sve (po ulozi)</button>
+  </div>
+
+  <table id="tbl">
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Ljubimac</th>
+        <th>Veterinar</th>
+        <th>Usluga</th>
+        <th>Početak</th>
+        <th>Kraj</th>
+        <th>Status</th>
+        <th>Napomena</th>
+        <th id="thAkcije" style="display:none">Akcije</th>
+      </tr>
+    </thead>
+    <tbody id="rows">
+      <tr><td colspan="9">Učitavam…</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- auth helperi -->
+<script src="/js/auth.js"></script>
+<script>
+// pomoćne
+function rolesArr(){
+  try{ return (JSON.parse(localStorage.getItem('roles')||'[]')||[]).map(r=>r.authority); }
+  catch(e){ return []; }
+}
+function isVeterinar(){ return rolesArr().includes('ROLE_VETERINAR'); }
+function isAdmin(){ return rolesArr().includes('ROLE_ADMIN'); }
+
+// ISO -> lokalno vreme
+function fmt(iso){
+  if(!iso) return '';
+  const d=new Date(iso);
+  if(Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleString();
+}
+
+function paintHeader(){
+  const info=document.getElementById('userInfo');
+  const btn=document.getElementById('btnLogout');
+  const t=localStorage.getItem('jwt');
+  const roles = rolesArr();
+  if(t){
+    info.textContent = 'Prijavljen' + (roles.length?(' ('+roles.join(', ')+')'):'');
+    btn.style.display='inline-block';
+    btn.onclick=()=>{ logout(); location.href='/'; };
+  }else{
+    info.innerHTML='<a href="/prijava">Prijavi se</a>';
+    btn.style.display='none';
+  }
+  // admin link
+  const linkI=document.getElementById('navIzvestaji');
+  if(linkI) linkI.style.display = isAdmin() ? 'inline' : 'none';
+
+  // filter “po veterinaru” samo ADMIN/VET
+  document.getElementById('fltVet').style.display = (isAdmin()||isVeterinar()) ? 'inline-flex' : 'none';
+  // kolona Akcije samo VET
+  document.getElementById('thAkcije').style.display = isVeterinar() ? '' : 'none';
+}
+
+async function fetchAndRender(url){
+  const msg=document.getElementById('msg');
+  const rows=document.getElementById('rows');
+
+  if(!localStorage.getItem('jwt')){
+    msg.innerHTML='Niste prijavljeni. <a href="/prijava">Prijavite se</a> da vidite preglede.';
+    rows.innerHTML='';
+    return;
+  }
+
+  rows.innerHTML='<tr><td colspan="9">Učitavam…</td></tr>';
+  try{
+    const res = await fetch(url, { headers: authHeader() });
+    if (res.status===401 || res.status===403){
+      rows.innerHTML='';
+      msg.textContent='Nemate dozvolu (401/403).';
+      return;
+    }
+    if(!res.ok) throw new Error('Greška ' + res.status);
+
+    const data = await res.json();
+    if(!Array.isArray(data) || data.length===0){
+      rows.innerHTML='<tr><td colspan="9">Nema termina.</td></tr>';
+      msg.textContent='';
+      return;
+    }
+
+    const vetMode = isVeterinar();
+    rows.innerHTML = data.map(p => {
+      const statusCell = (p.status||'');
+      const akcijeCell = vetMode
+        ? `
+          <div class="row-actions">
+            <select data-act="status" data-id="${p.id}">
+              <option value="ZAKAZAN"  ${p.status==='ZAKAZAN'?'selected':''}>ZAKAZAN</option>
+              <option value="POTVRĐEN" ${p.status==='POTVRĐEN'?'selected':''}>POTVRĐEN</option>
+              <option value="OBAVLJEN" ${p.status==='OBAVLJEN'?'selected':''}>OBAVLJEN</option>
+              <option value="OTKAZAN"  ${p.status==='OTKAZAN'?'selected':''}>OTKAZAN</option>
+            </select>
+            <button data-act="save" data-id="${p.id}">Sačuvaj</button>
+          </div>
+        `
+        : '';
+      return `
+      <tr>
+        <td>${p.id||''}</td>
+        <td>${p.ljubimacIme||''}</td>
+        <td>${p.veterinarIme||''}</td>
+        <td>${p.uslugaNaziv||''}</td>
+        <td>${fmt(p.datumPocetka)}</td>
+        <td>${fmt(p.datumZavrsetka)}</td>
+        <td>${statusCell}</td>
+        <td>${p.napomena||''}</td>
+        <td style="${vetMode?'':'display:none'}">${akcijeCell}</td>
+      </tr>`;
+    }).join('');
+    msg.textContent='';
+
+    // delegacija događaja za “Sačuvaj” (samo vet)
+    if (isVeterinar()){
+      rows.addEventListener('click', async (ev)=>{
+        const btn = ev.target.closest('button[data-act="save"]');
+        if(!btn) return;
+        const id = btn.getAttribute('data-id');
+        const sel = rows.querySelector(`select[data-act="status"][data-id="${id}"]`);
+        if(!sel) return;
+        btn.disabled = true;
+        const prev = btn.textContent;
+        btn.textContent = '…';
+        try{
+          const res = await fetch(`/api/pregledi/${id}/status`, {
+            method:'PATCH',
+            headers: { ...authHeader(), 'Content-Type':'application/json' },
+            body: JSON.stringify({ status: sel.value })
+          });
+          if(!res.ok){
+            const txt = await res.text();
+            throw new Error('Greška '+res.status+(txt?': '+txt:''));
+          }
+          msg.textContent = 'Status ažuriran.';
+          // osveži listu da status kolona bude sinhronizovana
+          await fetchAndRender('/api/pregledi');
+        }catch(e){
+          msg.textContent = e.message;
+        }finally{
+          btn.disabled=false; btn.textContent=prev;
+        }
+      }, { once:false });
+    }
+  }catch(err){
+    rows.innerHTML='';
+    msg.textContent='Došlo je do greške: ' + err.message;
+  }
+}
+
+async function loadAppointments(){
+  await fetchAndRender('/api/pregledi');
+}
+
+// Init
+(function(){
+  window.addEventListener('load', ()=>{
+    paintHeader();
+    loadAppointments();
+
+    document.getElementById('btnSve').onclick = ()=> fetchAndRender('/api/pregledi');
+
+    document.getElementById('btnPoDanu').onclick = ()=>{
+      const d = (document.getElementById('inpDate').value||'').trim();
+      if(!d){ alert('Izaberi datum.'); return; }
+      fetchAndRender('/api/pregledi/po-danu?date='+encodeURIComponent(d));
+    };
+
+    document.getElementById('btnPoVet').onclick = ()=>{
+      const id = (document.getElementById('inpVetId').value||'').trim();
+      if(!id){ alert('Unesi veterinarId.'); return; }
+      const d  = (document.getElementById('inpDate').value||'').trim();
+      const q  = d ? ('&date='+encodeURIComponent(d)) : '';
+      fetchAndRender('/api/pregledi/po-veterinaru?veterinarId='+encodeURIComponent(id)+q);
+    };
+  });
+})();
+</script>
+</body>
+</html>

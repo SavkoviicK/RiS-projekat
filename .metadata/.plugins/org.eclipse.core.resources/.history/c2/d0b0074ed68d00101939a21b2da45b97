@@ -1,0 +1,22 @@
+/*
+ * package com.veterinarska.stanica.controller;
+ * 
+ * import org.springframework.web.bind.annotation.GetMapping; import
+ * org.springframework.web.bind.annotation.RestController; import
+ * com.veterinarska.stanica.service.EmailService;
+ * 
+ * @RestController public class MailController {
+ * 
+ * private final EmailService emailService;
+ * 
+ * public MailController(EmailService emailService) { this.emailService =
+ * emailService; }
+ * 
+ * @GetMapping("/api/mail/test") public String testMail() { try {
+ * emailService.posaljiEmail( "primac@gmail.com", "Test poruka",
+ * "Ovo je test slanje mejla iz projekta Veterinarska stanica." ); return
+ * "Poruka poslata!"; } catch (Exception e) { return "Slanje nije uspelo: " +
+ * e.getMessage(); } }
+ * 
+ * }
+ */

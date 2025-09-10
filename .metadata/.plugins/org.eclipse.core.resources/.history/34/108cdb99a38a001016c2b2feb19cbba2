@@ -1,0 +1,5 @@
+package com.veterinarska.stanica.repository;
+
+public interface ZahtevZaPrijateljstvoRepository {
+
+}

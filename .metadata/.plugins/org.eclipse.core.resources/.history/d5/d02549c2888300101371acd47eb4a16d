@@ -1,0 +1,33 @@
+package com.veterinarska.stanica.controller;
+
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import java.util.List;
+
+import com.veterinarska.stanica.model.Pregled;
+import com.veterinarska.stanica.repository.PregledRepository;
+
+@RestController
+@RequestMapping("/api/pregledi")
+public class PregledController {
+
+    private final PregledRepository repo;
+
+    public PregledController(PregledRepository repo) {
+        this.repo = repo;
+    }
+
+    // Dodaj pregled
+    @PostMapping
+    public ResponseEntity<Pregled> dodaj(@RequestBody Pregled p) {
+        return ResponseEntity.ok(repo.save(p));
+    }
+
+    // Svi pregledi
+    @GetMapping
+    public List<Pregled> svi() {
+        return repo.findAll();
+    }
+    
+    
+}

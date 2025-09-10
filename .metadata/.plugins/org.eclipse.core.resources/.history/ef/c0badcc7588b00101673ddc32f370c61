@@ -1,0 +1,63 @@
+package com.veterinarska.stanica.service;
+
+import java.io.InputStream;
+import java.sql.Connection;
+import java.util.HashMap;
+import java.util.Map;
+import javax.sql.DataSource;
+
+import org.springframework.stereotype.Service;
+
+import net.sf.jasperreports.engine.JasperCompileManager;
+import net.sf.jasperreports.engine.JasperExportManager;
+import net.sf.jasperreports.engine.JasperFillManager;
+import net.sf.jasperreports.engine.JasperPrint;
+import net.sf.jasperreports.engine.JasperReport;
+
+@Service
+public class IzvestajService {
+
+    private final DataSource dataSource;
+
+    public IzvestajService(DataSource dataSource) {
+        this.dataSource = dataSource;
+    }
+
+    // PDF: pregledi po danu
+    public byte[] generisiPregledePoDanu() throws Exception {
+        try (InputStream in = getClass().getResourceAsStream("/reports/pregledi_po_danu.jrxml");
+             Connection conn = dataSource.getConnection()) {
+
+            if (in == null) {
+                throw new IllegalStateException("Nije pronađen JRXML /reports/pregledi_po_danu.jrxml");
+            }
+
+            JasperReport report = JasperCompileManager.compileReport(in);
+
+            // Parametri (ako ih JRXML koristi; ako ne – ignorisu se)
+            Map<String,Object> params = new HashMap<>();
+            params.put("ULOGA", "VETERINAR"); // 
+            JasperPrint print = JasperFillManager.fillReport(report, params, conn);
+            return JasperExportManager.exportReportToPdf(print);
+        }
+    }
+
+    // PDF: pregledi po veterinaru 
+    public byte[] generisiPregledePoVeterinaru() throws Exception {
+        try (InputStream in = getClass().getResourceAsStream("/reports/pregledi_po_veterinaru.jrxml");
+             Connection conn = dataSource.getConnection()) {
+
+            if (in == null) {
+                throw new IllegalStateException("Nije pronađen JRXML /reports/pregledi_po_veterinaru.jrxml");
+            }
+
+            JasperReport report = JasperCompileManager.compileReport(in);
+
+            Map<String,Object> params = new HashMap<>();
+            params.put("ULOGA", "VETERINAR");
+
+            JasperPrint print = JasperFillManager.fillReport(report, params, conn);
+            return JasperExportManager.exportReportToPdf(print);
+        }
+    }
+}

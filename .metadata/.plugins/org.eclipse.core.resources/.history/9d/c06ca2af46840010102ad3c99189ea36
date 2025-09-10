@@ -1,0 +1,68 @@
+package com.veterinarska.stanica.config;
+
+import com.veterinarska.stanica.security.JwtAuthFilter;
+import com.veterinarska.stanica.security.JwtUtil;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.http.HttpMethod;
+
+@Configuration
+public class SecurityConfig {
+
+    @Value("${jwt.secret}") private String jwtSecret;
+    @Value("${jwt.expiration}") private long jwtExpiration;
+
+    private final JwtAuthFilter jwtAuthFilter;
+
+    public SecurityConfig(JwtAuthFilter jwtAuthFilter) {
+        this.jwtAuthFilter = jwtAuthFilter;
+    }
+
+    @Bean
+    public PasswordEncoder passwordEncoder() { return new BCryptPasswordEncoder(); }
+
+    @Bean
+    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+        http.csrf(csrf -> csrf.disable())
+           .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+           .authorizeHttpRequests(auth -> auth
+               .requestMatchers("/api/ping").permitAll()
+               .requestMatchers("/api/auth/**").permitAll()
+               .requestMatchers("/api/korisnici/registracija").permitAll()
+               // Swagger (da ti radi UI bez tokena)
+               .requestMatchers("/v3/api-docs/**", "/swagger-ui.html", "/swagger-ui/**").permitAll()
+            // samo ADMIN može da dodaje/usluge
+               .requestMatchers("/api/usluge","/api/usluge/**").hasRole("ADMIN")
+               // vlasnici mogu ljubimce i zakazivanja
+               .requestMatchers("/api/ljubimci","/api/ljubimci/**").hasRole("VLASNIK")
+               .requestMatchers("/api/pregledi","/api/pregledi/**").hasRole("VLASNIK")
+
+               // veterinar unosi medicinske zapise
+               .requestMatchers("/api/medicinski-zapisi","/api/medicinski-zapisi/**").hasRole("VETERINAR")
+               .requestMatchers("/api/izvestaji", "/api/izvestaji/**").hasRole("ADMIN")
+               // PREGLEDI: VLASNIK za CRUD termina
+               .requestMatchers(HttpMethod.PATCH, "/api/pregledi/**").hasRole("VETERINAR")
+               .requestMatchers(HttpMethod.POST,   "/api/pregledi", "/api/pregledi/**").hasRole("VLASNIK")
+               .requestMatchers(HttpMethod.PUT,    "/api/pregledi", "/api/pregledi/**").hasRole("VLASNIK")
+               .requestMatchers(HttpMethod.DELETE, "/api/pregledi", "/api/pregledi/**").hasRole("VLASNIK")
+               // STATUS menja SAMO VETERINAR
+               .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/pregledi", "/api/pregledi/**")
+               .hasAnyRole("VLASNIK","VETERINAR","ADMIN")
+               .requestMatchers("/api/whoami").permitAll()
+               .requestMatchers(org.springframework.http.HttpMethod.DELETE, "/api/usluge/**").hasRole("ADMIN")
+
+               // svi ostali endpointi zahtevaju autentifikaciju
+               .anyRequest().authenticated()
+           )
+           .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+
+        return http.build();
+    }
+}

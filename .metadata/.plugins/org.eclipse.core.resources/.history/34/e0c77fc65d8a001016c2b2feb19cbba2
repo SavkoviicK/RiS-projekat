@@ -1,0 +1,10 @@
+package com.veterinarska.stanica.repository;
+
+import java.uitl.Optional;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+import com.veterinarska.stanica.model.Usluga;
+
+public interface UslugaRepository extends JpaRepository<Usluga, Long> {
+	Optional<Usluga>findByNazivIgnorCase(String naziv);
+}

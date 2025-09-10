@@ -1,0 +1,39 @@
+package com.veterinarska.stanica.controllers;
+
+import com.veterinarska.stanica.model.FriendRequest;
+import com.veterinarska.stanica.model.Korisnik;
+import com.veterinarska.stanica.service.FriendRequestService;
+import com.veterinarska.stanica.repository.KorisnikRepository;
+import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+
+import java.util.List;
+
+@Controller
+public class FriendsPageController {
+
+    private final FriendRequestService friendRequestService;
+    private final KorisnikRepository korisnikRepo;
+
+    public FriendsPageController(FriendRequestService friendRequestService, KorisnikRepository korisnikRepo) {
+        this.friendRequestService = friendRequestService;
+        this.korisnikRepo = korisnikRepo;
+    }
+
+    @GetMapping("/friends")
+    public String friendsPage(@RequestParam Long userId, Model model) {
+        Korisnik currentUser = korisnikRepo.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("Korisnik ne postoji"));
+
+        List<FriendRequest> requests = friendRequestService.getPendingRequests(userId);
+        List<Korisnik> friends = friendRequestService.getFriends(userId);
+
+        model.addAttribute("currentUser", currentUser);
+        model.addAttribute("requests", requests);
+        model.addAttribute("friends", friends);
+
+        return "friends"; // friends.jsp
+    }
+}

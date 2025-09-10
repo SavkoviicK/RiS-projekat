@@ -1,0 +1,62 @@
+package com.veterinarska.stanica.controller;
+
+import com.veterinarska.stanica.model.Korisnik;
+import com.veterinarska.stanica.model.ZahtevZaPrijateljstvo;
+import com.veterinarska.stanica.service.PrijateljiService;
+import com.veterinarska.stanica.repository.KorisnikRepository;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/prijatelji")
+public class PrijateljiController {
+
+    private final PrijateljiService prijateljiService;
+    private final KorisnikRepository korisnikRepo;
+
+    public PrijateljiController(PrijateljiService prijateljiService,
+                                KorisnikRepository korisnikRepo) {
+        this.prijateljiService = prijateljiService;
+        this.korisnikRepo = korisnikRepo;
+    }
+
+    /** Pošalji zahtev ulogovanog korisnika ka korisniku {primaocId}. */
+    @PostMapping("/zahtev")
+    public ResponseEntity<String> posaljiZahtev(@RequestParam("primaocId") Long primaocId,
+                                                Authentication auth) {
+        Korisnik ja = korisnikRepo.findByEmail(auth.getName())
+                .orElseThrow(() -> new RuntimeException("Korisnik ne postoji"));
+
+        prijateljiService.posaljiZahtev(ja.getId(), primaocId);
+        return ResponseEntity.ok("Zahtev za prijateljstvo je poslat.");
+    }
+
+    /** Odgovori na zahtev (prihvati/odbij). */
+    @PostMapping("/odgovor")
+    public ResponseEntity<String> odgovori(@RequestParam("zahtevId") Long zahtevId,
+                                           @RequestParam("prihvati") boolean prihvati) {
+        prijateljiService.odgovoriNaZahtev(zahtevId, prihvati);
+        return ResponseEntity.ok("Zahtev je ažuriran.");
+    }
+
+    /** Pending zahtevi koji su stigli meni (ulogovanom). */
+    @GetMapping("/na-cekaju")
+    public List<ZahtevZaPrijateljstvo> naCekanju(Authentication auth) {
+        Korisnik ja = korisnikRepo.findByEmail(auth.getName())
+                .orElseThrow(() -> new RuntimeException("Korisnik ne postoji"));
+
+        return prijateljiService.pendingZa(ja.getId());
+    }
+
+    /** Lista mojih prijatelja (ulogovani). */
+    @GetMapping
+    public List<Korisnik> lista(Authentication auth) {
+        Korisnik ja = korisnikRepo.findByEmail(auth.getName())
+                .orElseThrow(() -> new RuntimeException("Korisnik ne postoji"));
+
+        return prijateljiService.listaPrijatelja(ja.getId());
+    }
+}

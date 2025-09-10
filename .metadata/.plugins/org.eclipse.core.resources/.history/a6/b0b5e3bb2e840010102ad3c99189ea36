@@ -1,0 +1,31 @@
+package com.veterinarska.stanica.controller;
+
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import java.util.List;
+
+import com.veterinarska.stanica.model.Poruka;
+import com.veterinarska.stanica.repository.PorukaRepository;
+
+@RestController
+@RequestMapping("/api/poruke")
+public class PorukaController {
+
+    private final PorukaRepository repo;
+
+    public PorukaController(PorukaRepository repo) {
+        this.repo = repo;
+    }
+
+    // Slanje poruke
+    @PostMapping
+    public ResponseEntity<Poruka> posalji(@RequestBody Poruka p) {
+        return ResponseEntity.ok(repo.save(p));
+    }
+
+    // Sve poruke
+    @GetMapping
+    public List<Poruka> sve() {
+        return repo.findAll();
+    }
+}

@@ -1,0 +1,40 @@
+package com.veterinarska.stanica.model;
+
+import jakarta.persistence.*;
+import java.time.LocalDateTime;
+
+@Entity
+@Table(name = "zahtevi_prijateljstvo")
+public class ZahtevZaPrijateljstvo {
+
+    public enum Status { NA_CEKANJU, PRIHVACEN, ODBIJEN }
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @ManyToOne(optional = false)
+    @JoinColumn(name = "posiljalac_id")
+    private Korisnik posiljalac;
+
+    @ManyToOne(optional = false)
+    @JoinColumn(name = "primalac_id")
+    private Korisnik primalac;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private Status status = Status.NA_CEKANJU;
+
+    @Column(nullable = false)
+    private Instant kreiran = Instant.now();
+
+    public Long getId() { return id; }
+    public Korisnik getPosiljalac() { return posiljalac; }
+    public void setPosiljalac(Korisnik posiljalac) { this.posiljalac = posiljalac; }
+    public Korisnik getPrimalac() { return primalac; }
+    public void setPrimalac(Korisnik primalac) { this.primalac = primalac; }
+    public Status getStatus() { return status; }
+    public void setStatus(Status status) { this.status = status; }
+    public LocalDateTime getKreiran() { return kreiran; }
+    public void setKreiran(Instant kreiran) { this.kreiran = kreiran; }
+}

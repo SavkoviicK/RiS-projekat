@@ -1,0 +1,20 @@
+package com.veterinarska.stanica.repository;
+
+import java.util.List;
+import org.springframework.data.jpa.repository.JpaRepository;
+import com.veterinarska.stanica.model.Poruka;
+import com.veterinarska.stanica.model.Korisnik;
+
+public interface PorukaRepository extends JpaRepository<Poruka, Long> {
+    List<Poruka> findByPosiljalacAndPrimalac(Korisnik posiljalac, Korisnik primalac);
+    List<Poruka> findByPrimalac(Korisnik primalac);
+    
+    // NOVO: cela konverzacija između dva korisnika
+    @Query("""
+      from Poruka p
+      where (p.posiljalac = :a and p.primalac = :b)
+         or (p.posiljalac = :b and p.primalac = :a)
+      order by p.vreme asc
+    """)
+    List<Poruka> konverzacija(Korisnik a, Korisnik b);
+}

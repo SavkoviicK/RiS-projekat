@@ -1,0 +1,71 @@
+<%@ page contentType="text/html; charset=UTF-8" %>
+<%@ taglib uri="http://java.sun.com/jsp/jstl/core" prefix="c" %>
+<!DOCTYPE html>
+<html lang="sr">
+<head>
+  <meta charset="UTF-8">
+  <title>Prijatelji</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin:0; background:#f7f9fb; }
+    .wrap { max-width: 900px; margin: 24px auto; padding: 0 16px; }
+    table { width: 100%; border-collapse: collapse; background:#fff; border:1px solid #e6e6e6; }
+    th, td { padding: 10px; border-top: 1px solid #eee; text-align: left; }
+    thead tr { background: #f2f4f7; }
+    h2 { margin-top: 30px; }
+    .btn { padding: 6px 12px; border: none; border-radius: 6px; cursor: pointer; }
+    .btn-accept { background: #4CAF50; color: #fff; }
+    .btn-decline { background: #f44336; color: #fff; }
+    .btn-msg { background: #0b5ed7; color: #fff; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <h1>👥 Prijatelji</h1>
+
+  <h2>Zahtevi za prijateljstvo</h2>
+  <table>
+    <thead>
+      <tr><th>Od</th><th>Akcija</th></tr>
+    </thead>
+    <tbody>
+      <c:forEach var="z" items="${zahtevi}">
+        <tr>
+          <td>${z.posiljalac.ime} (${z.posiljalac.email})</td>
+          <td>
+            <form method="post" action="${pageContext.request.contextPath}/api/prijatelji/odgovor">
+              <input type="hidden" name="zahtevId" value="${z.id}" />
+              <button type="submit" class="btn btn-accept" name="prihvati" value="true">Prihvati</button>
+              <button type="submit" class="btn btn-decline" name="prihvati" value="false">Odbij</button>
+            </form>
+          </td>
+        </tr>
+      </c:forEach>
+      <c:if test="${empty zahtevi}">
+        <tr><td colspan="2">Nema novih zahteva</td></tr>
+      </c:if>
+    </tbody>
+  </table>
+
+  <h2>Moji prijatelji</h2>
+  <table>
+    <thead>
+      <tr><th>Ime</th><th>Email</th><th>Poruke</th></tr>
+    </thead>
+    <tbody>
+      <c:forEach var="f" items="${prijatelji}">
+        <tr>
+          <td>${f.ime}</td>
+          <td>${f.email}</td>
+          <td>
+            <a class="btn btn-msg" href="${pageContext.request.contextPath}/poruke">Otvori chat</a>
+          </td>
+        </tr>
+      </c:forEach>
+      <c:if test="${empty prijatelji}">
+        <tr><td colspan="3">Još nemaš prijatelja</td></tr>
+      </c:if>
+    </tbody>
+  </table>
+</div>
+</body>
+</html>

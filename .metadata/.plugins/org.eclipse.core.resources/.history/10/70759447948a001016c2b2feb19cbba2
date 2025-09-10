@@ -1,0 +1,85 @@
+package com.veterinarska.stanica.config;
+
+import com.veterinarska.stanica.security.JwtAuthFilter;
+import jakarta.servlet.DispatcherType;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+
+@Configuration
+public class SecurityConfig {
+
+    private final JwtAuthFilter jwtAuthFilter;
+
+    public SecurityConfig(JwtAuthFilter jwtAuthFilter) {
+        this.jwtAuthFilter = jwtAuthFilter;
+    }
+
+    @Bean
+    public PasswordEncoder passwordEncoder() { return new BCryptPasswordEncoder(); }
+
+    @Bean
+    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+        http
+            .csrf(AbstractHttpConfigurer::disable)
+            .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .authorizeHttpRequests(auth -> auth
+                // dozvoli FORWARD/ERROR za JSP rendering
+                .dispatcherTypeMatchers(DispatcherType.FORWARD, DispatcherType.ERROR).permitAll()
+
+                // stranice i statika (page rute su dozvoljene; zastita je na API-ju)
+                .requestMatchers("/", "/home", "/ljubimci", "/pregledi", "/poruke",
+                                 "/izvestaji",      // stranica slobodna, sadrzaj ce proveriti ulogu
+                                 "/prijava", "/login", "/registracija",
+                                 "/img/**", "/css/**", "/js/**", "/webjars/**", "/favicon.ico")
+                .permitAll()
+
+                // Public API
+                .requestMatchers("/api/ping").permitAll()
+                .requestMatchers("/api/auth/**").permitAll()
+                .requestMatchers("/api/korisnici/registracija").permitAll()
+                .requestMatchers("/api/korisnici/veterinari").authenticated()
+                .requestMatchers("/v3/api-docs/**", "/swagger-ui.html", "/swagger-ui/**").permitAll()
+
+                // ko je ulogovan
+                .requestMatchers("/api/whoami").authenticated()
+
+                // IZVESTAJI – API samo ADMIN
+                .requestMatchers("/api/izvestaji/**").hasRole("ADMIN")
+
+                // USLUGE (samo ADMIN)
+                .requestMatchers("/api/usluge", "/api/usluge/**").hasRole("ADMIN")
+
+                // PREGLEDI
+                .requestMatchers(HttpMethod.PATCH,  "/api/pregledi/**").hasRole("VETERINAR")
+                .requestMatchers(HttpMethod.POST,   "/api/pregledi/**").hasRole("VLASNIK")
+                .requestMatchers(HttpMethod.PUT,    "/api/pregledi/**").hasRole("VLASNIK")
+                .requestMatchers(HttpMethod.DELETE, "/api/pregledi/**").hasRole("VLASNIK")
+                .requestMatchers(HttpMethod.GET,    "/api/pregledi/**")
+                    .hasAnyRole("VLASNIK","VETERINAR","ADMIN")
+
+                // MEDICINSKI ZAPISI (samo VETERINAR)
+                .requestMatchers(HttpMethod.POST, "/api/medicinski-zapisi").hasRole("VETERINAR")
+                .requestMatchers("/api/medicinski-zapisi/**").hasRole("VETERINAR")
+
+                // LJUBIMCI – API samo vlasnik
+                .requestMatchers("/api/ljubimci/**").hasRole("VLASNIK")
+
+                // PORUKE – bilo koja uloga, ali mora login
+                .requestMatchers("/api/poruke/**").authenticated()
+
+                // ostalo – login
+                .anyRequest().authenticated()
+            )
+            .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+
+        return http.build();
+    }
+}

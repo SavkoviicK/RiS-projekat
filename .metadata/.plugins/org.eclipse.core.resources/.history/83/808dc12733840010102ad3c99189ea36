@@ -1,0 +1,57 @@
+package com.veterinarska.stanica.controller;
+
+import com.veterinarska.stanica.dto.MedicinskiZapisDTO;
+import com.veterinarska.stanica.mapper.AppMapper;
+import com.veterinarska.stanica.model.Ljubimac;
+import com.veterinarska.stanica.model.MedicinskiZapis;
+import com.veterinarska.stanica.model.Korisnik;
+import com.veterinarska.stanica.repository.KorisnikRepository;
+import com.veterinarska.stanica.repository.LjubimacRepository;
+import com.veterinarska.stanica.repository.MedicinskiZapisRepository;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+import static com.veterinarska.stanica.mapper.AppMapper.toDTO;
+
+@RestController
+@RequestMapping("/api/medicinski-zapisi")
+public class MedicinskiZapisController {
+
+    private final MedicinskiZapisRepository repo;
+    private final LjubimacRepository ljubimacRepo;
+    private final KorisnikRepository korisnikRepo;
+
+    public MedicinskiZapisController(MedicinskiZapisRepository repo,
+                                     LjubimacRepository ljubimacRepo,
+                                     KorisnikRepository korisnikRepo) {
+        this.repo = repo;
+        this.ljubimacRepo = ljubimacRepo;
+        this.korisnikRepo = korisnikRepo;
+    }
+
+    @GetMapping
+    public List<MedicinskiZapisDTO> svi() {
+        return repo.findAll().stream().map(AppMapper::toDTO).toList();
+    }
+
+    @PostMapping
+    public ResponseEntity<?> dodaj(@RequestBody MedicinskiZapis m) {
+        if (m.getLjubimac() == null || m.getLjubimac().getId() == null)
+            return ResponseEntity.badRequest().body("Nedostaje ljubimac_id");
+        if (m.getVeterinar() == null || m.getVeterinar().getId() == null)
+            return ResponseEntity.badRequest().body("Nedostaje veterinar_id");
+
+        Ljubimac ljubimac = ljubimacRepo.findById(m.getLjubimac().getId())
+                .orElseThrow(() -> new RuntimeException("Ljubimac ne postoji"));
+        Korisnik veterinar = korisnikRepo.findById(m.getVeterinar().getId())
+                .orElseThrow(() -> new RuntimeException("Veterinar ne postoji"));
+
+        m.setLjubimac(ljubimac);
+        m.setVeterinar(veterinar);
+
+        MedicinskiZapis sacuvan = repo.save(m);
+        return ResponseEntity.ok(toDTO(sacuvan));
+    }
+}

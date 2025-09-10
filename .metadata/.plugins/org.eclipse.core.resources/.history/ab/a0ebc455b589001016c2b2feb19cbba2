@@ -1,0 +1,198 @@
+<%@ page contentType="text/html; charset=UTF-8" %>
+<!DOCTYPE html>
+<html lang="sr">
+<head>
+  <meta charset="UTF-8">
+  <title>Ljubimci</title>
+  <style>
+    body{font-family:system-ui,Arial;margin:0;background:#f7f9fb}
+    header{display:flex;align-items:center;justify-content:space-between;gap:16px;
+           padding:16px 24px;background:#fff;border-bottom:1px solid #e6e6e6}
+    .wrap{max-width:900px;margin:24px auto;padding:0 16px}
+    nav a{margin-right:12px;text-decoration:none;color:#0b5ed7}
+    table{width:100%;border-collapse:collapse;background:#fff;border:1px solid #e6e6e6}
+    th,td{padding:10px;border-top:1px solid #eee;text-align:left}
+    thead tr{background:#f2f4f7}
+    .btn{background:#0b5ed7;color:#fff;border:none;border-radius:8px;cursor:pointer}
+  </style>
+</head>
+<body>
+<header>
+  <div style="display:flex;align-items:center;gap:12px">
+    <img src="/img/logo.png" alt="Logo" style="height:46px">
+    <strong>Veterinarska stanica Vaš ljubimac</strong>
+  </div>
+  <nav>
+    <a href="/">Početna</a>
+    <a href="/ljubimci">Ljubimci</a>
+    <a href="/pregledi">Pregledi</a>
+    <a href="/poruke">Poruke</a>
+    <a id="navIzvestaji" href="/izvestaji" style="display:none">Izveštaji</a>
+    <a href="/prijava">Prijava</a>
+  </nav>
+  <div id="userBox"><span id="userInfo"></span>
+    <button id="btnLogout" style="display:none;margin-left:8px" class="btn">Odjava</button>
+  </div>
+</header>
+
+<div class="wrap">
+  <h1>🐾 Ljubimci</h1>
+
+  <div id="msg" style="margin:8px 0 16px 0;color:#444"></div>
+
+  <table id="tbl">
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Ime</th>
+        <th>Vrsta</th>
+        <th>Rasa</th>
+        <th>Pol</th>
+        <th>Vlasnik (email)</th>
+      </tr>
+    </thead>
+    <tbody id="rows">
+      <tr><td colspan="6">Učitavam…</td></tr>
+    </tbody>
+  </table>
+
+  <hr style="margin:24px 0">
+
+  <!-- OVO SE PRIKAZUJE SAMO VLASNIKU -->
+  <div id="addPetCard">
+    <h2 style="margin:0 0 12px 0">➕ Dodaj ljubimca</h2>
+    <form id="frmPet" onsubmit="return addPet(event)" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;background:#fff;border:1px solid #e6e6e6;border-radius:8px;padding:12px">
+      <label>Ime
+        <input name="ime" required style="width:100%;padding:8px">
+      </label>
+      <label>Vrsta
+        <input name="vrsta" required style="width:100%;padding:8px">
+      </label>
+      <label>Rasa
+        <input name="rasa" style="width:100%;padding:8px">
+      </label>
+      <label>Pol
+        <select name="pol" required style="width:100%;padding:8px">
+          <option value="M">M</option>
+          <option value="Ž">Ž</option>
+        </select>
+      </label>
+      <label style="grid-column:1 / -1">Napomena
+        <input name="napomena" style="width:100%;padding:8px">
+      </label>
+      <div style="grid-column:1 / -1;text-align:right">
+        <button class="btn" type="submit" style="padding:10px 16px">Sačuvaj</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- auth helpers (authHeader(), logout(), … ) -->
+<script src="/js/auth.js"></script>
+
+<script src="/js/auth.js"></script>
+<script>
+// učitavanje liste ljubimaca
+async function loadPets(){
+  const msg  = document.getElementById('msg');
+  const rows = document.getElementById('rows');
+  rows.innerHTML = '<tr><td colspan="6">Učitavam…</td></tr>';
+
+  if (!localStorage.getItem('jwt')){
+    msg.innerHTML = 'Niste prijavljeni. <a href="/prijava">Prijavite se</a> da biste videli svoje ljubimce.';
+    rows.innerHTML = '';
+    return;
+  }
+
+  try{
+    const data = await fetchJSON('/api/ljubimci', { headers: authHeader() }, 'msg');
+    if (!Array.isArray(data) || data.length === 0){
+      rows.innerHTML = '<tr><td colspan="6">Nema podataka.</td></tr>';
+      showMsg('msg', '');
+      return;
+    }
+
+    let html = '';
+    for (const p of data){
+      html += '<tr>'
+            + '<td>' + (p.id || '') + '</td>'
+            + '<td>' + (p.ime || '') + '</td>'
+            + '<td>' + (p.vrsta || '') + '</td>'
+            + '<td>' + (p.rasa || '') + '</td>'
+            + '<td>' + (p.pol || '') + '</td>'
+            + '<td>' + (p.vlasnikEmail || '') + '</td>'
+            + '</tr>';
+    }
+    rows.innerHTML = html;
+    showMsg('msg', '');
+  }catch(_){
+    rows.innerHTML = '';
+    // poruka već ispisana u #msg
+  }
+}
+
+// header – “Prijavljen / Odjava” + prikaži “Izveštaji” samo ADMIN-u
+function renderUserBox(){
+  const info  = document.getElementById('userInfo');
+  const btn   = document.getElementById('btnLogout');
+  const linkI = document.getElementById('navIzvestaji');
+
+  const token = localStorage.getItem('jwt');
+  const roles = JSON.parse(localStorage.getItem('roles') || '[]'); // [{authority:"ROLE_…"}]
+
+  if (token){
+    info.textContent = 'Prijavljen' + (roles.length ? ' ('+roles.map(r=>r.authority).join(', ')+')' : '');
+    btn.style.display = 'inline-block';
+    btn.onclick = () => { logout(); location.href = '/'; };
+  } else {
+    info.innerHTML = '<a href="/prijava">Prijavi se</a>';
+    btn.style.display = 'none';
+  }
+
+  const isAdmin = roles.some(r => r.authority === 'ROLE_ADMIN');
+  if (linkI) linkI.style.display = isAdmin ? 'inline' : 'none';
+}
+
+// dodavanje ljubimca (samo VLASNIK)
+async function addPet(e){
+  e.preventDefault();
+  const f = document.getElementById('frmPet');
+  const body = {
+    ime: f.ime.value.trim(),
+    vrsta: f.vrsta.value.trim(),
+    rasa:  f.rasa.value.trim() || null,
+    pol:   f.pol.value,
+    napomena: f.napomena.value.trim() || null
+  };
+  try{
+    await fetchJSON('/api/ljubimci', {
+      method: 'POST',
+      headers: { ...authHeader(), 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    }, 'msg');
+    f.reset();
+    await loadPets();
+  }catch(_){
+    // poruka već ispisana u #msg
+  }
+  return false;
+}
+
+// init
+window.addEventListener('load', () => {
+  try {
+    renderUserBox();
+    loadPets();
+
+    // sakrij "Dodaj ljubimca" svima osim VLASNIK
+    const roles = (JSON.parse(localStorage.getItem('roles')||'[]')||[]).map(r=>r.authority);
+    const addCard = document.getElementById('addPetCard');
+    if (addCard) addCard.style.display = roles.includes('ROLE_VLASNIK') ? '' : 'none';
+  } catch(e){
+    console.error(e);
+  }
+});
+</script>
+
+</body>
+</html>

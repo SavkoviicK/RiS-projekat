@@ -1,0 +1,53 @@
+package com.veterinarska.stanica.service;
+
+import com.veterinarska.stanica.dto.MessageDto;
+import com.veterinarska.stanica.model.Korisnik;
+import com.veterinarska.stanica.model.Message;
+import com.veterinarska.stanica.repository.FriendshipRepository;
+import com.veterinarska.stanica.repository.KorisnikRepository;
+import com.veterinarska.stanica.repository.MessageRepository;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+
+@Service
+public class MessageService {
+
+    private final MessageRepository messageRepo;
+    private final KorisnikRepository korisnikRepo;
+    private final FriendshipRepository friendshipRepo;
+
+    public MessageService(MessageRepository messageRepo,
+                          KorisnikRepository korisnikRepo,
+                          FriendshipRepository friendshipRepo) {
+        this.messageRepo = messageRepo;
+        this.korisnikRepo = korisnikRepo;
+        this.friendshipRepo = friendshipRepo;
+    }
+
+    public void sendMessage(MessageDto dto) {
+        Korisnik sender = korisnikRepo.findById(dto.getSenderId())
+                .orElseThrow(() -> new IllegalArgumentException("Pošiljalac ne postoji"));
+        Korisnik receiver = korisnikRepo.findById(dto.getReceiverId())
+                .orElseThrow(() -> new IllegalArgumentException("Primalac ne postoji"));
+
+        // Ako je pošiljalac vlasnik → mora biti prijatelj sa primaocem
+        if ("VLASNIK".equalsIgnoreCase(sender.getUloga().name())) {
+            boolean friends = friendshipRepo.areFriends(sender.getId(), receiver.getId());
+            if (!friends) {
+                throw new IllegalStateException("Vlasnici mogu slati poruke samo prijateljima.");
+            }
+        }
+
+        Message message = new Message();
+        message.setSender(sender);
+        message.setReceiver(receiver);
+        message.setContent(dto.getContent());
+
+        messageRepo.save(message);
+    }
+
+    public List<Message> getMessagesBetweenUsers(Long user1Id, Long user2Id) {
+        return messageRepo.conversation(user1Id, user2Id);
+    }
+}

@@ -1,0 +1,15 @@
+package com.veterinarska.stanica.repository;
+
+import com.veterinarska.stanica.model.Korisnik;
+import com.veterinarska.stanica.model.Uloga;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.util.List;
+import java.util.Optional;
+
+public interface KorisnikRepository extends JpaRepository<Korisnik, Long> {
+    Optional<Korisnik> findByEmail(String email);
+    boolean existsByEmail(String email);   // ← dodaj ovu liniju
+    List<Korisnik> findByUloga(Uloga uloga);
+    List<Korisnik> findByIdNot(Long id);
+}

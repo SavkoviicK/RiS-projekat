@@ -1,0 +1,67 @@
+package com.veterinarska.stanica.controller;
+
+import com.veterinarska.stanica.dto.KorisnikDTO;
+import com.veterinarska.stanica.mapper.AppMapper;
+import com.veterinarska.stanica.model.Korisnik;
+import com.veterinarska.stanica.model.Uloga;
+import com.veterinarska.stanica.repository.KorisnikRepository;
+import jakarta.validation.Valid;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.validation.BindingResult;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/korisnici")
+public class KorisnikController {
+
+    private final KorisnikRepository repo;
+    private final PasswordEncoder encoder;
+
+    public KorisnikController(KorisnikRepository repo, PasswordEncoder encoder) {
+        this.repo = repo;
+        this.encoder = encoder;
+    }
+
+    // --- REGISTRACIJA (public) ---
+    // Minimal: email, lozinka, (opciono) uloga
+    @PostMapping("/registracija")
+    public ResponseEntity<?> registracija(@Valid @RequestBody Korisnik k, BindingResult result) {
+        if (result.hasErrors()) {
+            return ResponseEntity.badRequest().body(result.getAllErrors());
+        }
+        if (repo.existsByEmail(k.getEmail())) {
+            return ResponseEntity.badRequest().body("Email je zauzet");
+        }
+		/*
+		 * // default uloga je VLASNIK if (k.getUloga() == null) {
+		 * k.setUloga(Uloga.VLASNIK); }
+		 */
+        // hešuj lozinku
+        k.setLozinka(encoder.encode(k.getLozinka()));
+
+        Korisnik sacuvan = repo.save(k);
+        KorisnikDTO dto = AppMapper.toDTO(sacuvan);
+        return ResponseEntity.ok(dto);
+    }
+
+    // --- SVI KORISNICI (vrati DTO, bez lozinki) ---
+    // Preporuka: u SecurityConfig ograniči na ADMIN.
+    @GetMapping
+    public List<KorisnikDTO> svi() {
+        return repo.findAll().stream()
+                .map(AppMapper::toDTO)
+                .toList();
+    }
+
+    // --- SAMO VETERINARI (za dropdown na /pregledi) ---
+    // U SecurityConfig dozvoli authenticated().
+    @GetMapping("/veterinari")
+    public List<KorisnikDTO> veterinari() {
+        return repo.findAllByUloga(Uloga.VETERINAR).stream()
+                .map(AppMapper::toDTO)
+                .toList();
+    }
+}

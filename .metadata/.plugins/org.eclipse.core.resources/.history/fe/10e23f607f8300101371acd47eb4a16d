@@ -1,0 +1,41 @@
+package com.veterinarska.stanica.controller;
+
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.web.bind.annotation.*;
+import java.util.List;
+
+import com.veterinarska.stanica.model.Korisnik;
+import com.veterinarska.stanica.model.Uloga;
+import com.veterinarska.stanica.repository.KorisnikRepository;
+
+@RestController
+@RequestMapping("/api/korisnici")
+public class KorisnikController {
+
+    private final KorisnikRepository repo;
+    private final PasswordEncoder encoder;
+
+    public KorisnikController(KorisnikRepository repo, PasswordEncoder encoder) {
+        this.repo = repo;
+        this.encoder = encoder;
+    }
+
+    // minimalna registracija (email, lozinka, uloga)
+    @PostMapping("/registracija")
+    public ResponseEntity<?> registracija(@RequestBody Korisnik k) {
+        if (repo.existsByEmail(k.getEmail())) {
+            return ResponseEntity.badRequest().body("Email je zauzet");
+        }
+        // šifriraj lozinku
+        k.setLozinka(encoder.encode(k.getLozinka()));
+        if (k.getUloga() == null) k.setUloga(Uloga.VLASNIK);
+        return ResponseEntity.ok(repo.save(k));
+        // napomena: kasnije ćemo napraviti DTO i Validaciju, sad je samo test
+    }
+
+    @GetMapping
+    public List<Korisnik> svi() {
+        return repo.findAll();
+    }
+}

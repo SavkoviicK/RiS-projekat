@@ -1,0 +1,5 @@
+package com.veterinarska.stanica.model;
+
+public class FriendRequest {
+
+}

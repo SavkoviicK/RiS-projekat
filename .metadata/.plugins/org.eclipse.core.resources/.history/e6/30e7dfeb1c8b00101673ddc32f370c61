@@ -1,0 +1,83 @@
+package com.veterinarska.stanica.controller;
+
+import com.veterinarska.stanica.dto.PorukaDTO;
+import com.veterinarska.stanica.mapper.AppMapper;
+import com.veterinarska.stanica.model.Poruka;
+import com.veterinarska.stanica.model.Korisnik;
+import com.veterinarska.stanica.repository.KorisnikRepository;
+import com.veterinarska.stanica.repository.PorukaRepository;
+import com.veterinarska.stanica.service.PorukaService;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/poruke")
+public class PorukaController {
+
+    private final PorukaService porukaService;
+    private final KorisnikRepository korisnikRepo;
+    private final PorukaRepository porukaRepo;
+
+    public PorukaController(PorukaService porukaService,
+                            KorisnikRepository korisnikRepo,
+                            PorukaRepository porukaRepo) {
+        this.porukaService = porukaService;
+        this.korisnikRepo = korisnikRepo;
+        this.porukaRepo = porukaRepo;
+    }
+
+    // telo zahteva za slanje poruke
+    public record PorukaReq(Long primalacId, String sadrzaj) {}
+
+    /**
+     * Pošalji poruku ulogovanog korisnika ka primalacId.
+     * Pravilo: ako je ulogovani VLASNIK → mora biti prijatelj sa primaocem (validacija u PorukaService).
+     */
+    @PostMapping
+    public ResponseEntity<?> posalji(@RequestBody PorukaReq req, Authentication auth) {
+        if (req == null || req.primalacId() == null) {
+            return ResponseEntity.badRequest().body("Nedostaje primalacId");
+        }
+        if (req.sadrzaj() == null || req.sadrzaj().isBlank()) {
+            return ResponseEntity.badRequest().body("Nedostaje sadrzaj");
+        }
+
+        Korisnik posiljalac = korisnikRepo.findByEmail(auth.getName())
+                .orElseThrow(() -> new RuntimeException("Posiljalac (ulogovani) ne postoji"));
+
+        porukaService.posalji(posiljalac.getId(), req.primalacId(), req.sadrzaj());
+        return ResponseEntity.ok("Poruka je poslata.");
+    }
+
+    /**
+     * Sve moje poruke (poslao ili primio) — DTO format.
+     * Ako ti nije potrebno, možeš ga kasnije ukloniti.
+     */
+    @GetMapping
+    public List<PorukaDTO> moje(Authentication auth) {
+        Korisnik ja = korisnikRepo.findByEmail(auth.getName())
+                .orElseThrow(() -> new RuntimeException("Korisnik ne postoji"));
+
+        // Ako želiš sve moje poruke, koristi postojeći repo pa mapiraj:
+        return porukaRepo.findAll().stream()
+                .filter(p -> p.getPosiljalac().getId().equals(ja.getId())
+                          || p.getPrimalac().getId().equals(ja.getId()))
+                .map(AppMapper::toDTO)
+                .toList();
+    }
+
+    /**
+     * Jedna konverzacija između ulogovanog i datog korisnika (sa=friendId) — DTO format.
+     */
+    @GetMapping("/razgovor")
+    public List<PorukaDTO> razgovor(@RequestParam("sa") Long prijateljId, Authentication auth) {
+        Korisnik ja = korisnikRepo.findByEmail(auth.getName())
+                .orElseThrow(() -> new RuntimeException("Korisnik ne postoji"));
+
+        List<Poruka> poruke = porukaService.konverzacija(ja.getId(), prijateljId);
+        return poruke.stream().map(AppMapper::toDTO).toList();
+    }
+}

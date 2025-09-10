@@ -1,0 +1,5 @@
+package com.veterinarska.stanica.dto;
+
+public class PregledDTO {
+
+}

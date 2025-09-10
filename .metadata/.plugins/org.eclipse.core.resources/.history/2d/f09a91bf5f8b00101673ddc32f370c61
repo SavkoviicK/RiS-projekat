@@ -1,0 +1,63 @@
+package com.veterinarska.stanica.controller;
+
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.web.bind.annotation.*;
+import java.util.Map;
+
+import com.veterinarska.stanica.model.Korisnik;
+import com.veterinarska.stanica.repository.KorisnikRepository;
+import com.veterinarska.stanica.security.JwtUtil;
+
+import com.veterinarska.stanica.model.*;
+
+@RestController
+@RequestMapping("/api/auth")
+public class AuthController {
+
+    private final KorisnikRepository repo;
+    private final PasswordEncoder encoder;
+    private final JwtUtil jwt;
+
+    public AuthController(KorisnikRepository repo, PasswordEncoder encoder, JwtUtil jwt) {
+        this.repo = repo;
+        this.encoder = encoder;
+        this.jwt = jwt;
+    }
+
+    // --- LOGIN ---
+    public static record LoginRequest(String email, String lozinka) {}
+    public static record LoginResponse(String token) {}
+
+    @PostMapping("/login")
+    public ResponseEntity<?> login(@RequestBody LoginRequest req) {
+        Korisnik k = repo.findByEmail(req.email()).orElse(null);
+        if (k == null || !encoder.matches(req.lozinka(), k.getLozinka())) {
+            return ResponseEntity.status(401).body(Map.of("message","Neispravan email ili lozinka"));
+        }
+        String token = jwt.generateToken(k.getEmail());
+        return ResponseEntity.ok(new LoginResponse(token));
+    }
+
+    // --- REGISTRACIJA ---
+    public static record RegistracijaRequest(String ime, String prezime, String email, String lozinka) {}
+
+    @PostMapping("/registracija")
+    public ResponseEntity<?> registracija(@RequestBody RegistracijaRequest req) {
+        if (repo.findByEmail(req.email()).isPresent()) {
+            return ResponseEntity.status(409).body(Map.of("message", "Email je zauzet"));
+        }
+
+        Korisnik k = new Korisnik();
+        k.setIme(req.ime());
+        k.setPrezime(req.prezime());
+        k.setEmail(req.email());
+        k.setLozinka(encoder.encode(req.lozinka()));
+        k.setUloga(Uloga.VLASNIK);
+        k.setAktivan(true);
+        k.setDatumKreiranja(LocalDateTime.now());
+
+        repo.save(k);
+        return ResponseEntity.status(201).body(Map.of("id", k.getId()));
+    }
+}

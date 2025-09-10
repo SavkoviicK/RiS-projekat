@@ -1,0 +1,158 @@
+/* Simple auth helpers (JWT u localStorage) */
+
+// Razni formati koje whoami može da vrati pretvaramo u [{authority:"ROLE_X"}]
+function normalizeRoles(whoamiJson){
+  if (!whoamiJson) return [];
+  let roles = [];
+  if (Array.isArray(whoamiJson)) {
+    roles = whoamiJson;
+  } else if (whoamiJson.roles && Array.isArray(whoamiJson.roles)) {
+    roles = whoamiJson.roles;
+  } else if (whoamiJson.authorities && Array.isArray(whoamiJson.authorities)) {
+    roles = whoamiJson.authorities;
+  }
+  if (roles.length && typeof roles[0] === 'string') {
+    return roles.map(r => ({authority: r}));
+  }
+  if (roles.length && typeof roles[0] === 'object' && roles[0].authority) {
+    return roles;
+  }
+  return [];
+}
+
+/* ---------- LEPE PORUKE / FETCH POMOĆNICI ---------- */
+
+// Mapiranje status kodova u čitljive poruke
+function friendlyHttpMessage(res, fallback) {
+  const code = res.status;
+  const map = {
+    400: 'Neispravan zahtev. Proverite unos.',
+    401: 'Pogrešan email ili lozinka.',
+    403: 'Nemate dozvolu za ovu akciju.',
+    404: 'Traženi resurs nije pronađen.',
+    409: 'Sukob podataka (već postoji?).',
+    422: 'Podaci nisu prošli validaciju.',
+    429: 'Previše zahteva. Pokušajte kasnije.'
+  };
+  if (map[code]) return map[code];
+  if (code >= 500) return 'Greška na serveru. Pokušajte ponovo.';
+  return fallback || ('Greška (' + code + ').');
+}
+
+// Prikaz poruke u elementu ili alert ako element ne postoji
+function showMsg(targetId, text) {
+  const el = targetId && document.getElementById(targetId);
+  if (el) { el.textContent = text; return; }
+  alert(text);
+}
+
+// Wrapper oko fetch-a koji baca lep Error i ispisuje poruku u targetId
+// Wrapper oko fetch-a koji baca lep Error i ispisuje poruku u targetId
+// opts.appendServerText (default: true) – da li da dodajemo tekst koji je došao sa servera
+async function fetchJSON(url, options, targetId, customMap, opts) {
+  const res = await fetch(url, options || {});
+  const appendServerText = !opts || opts.appendServerText !== false;
+
+  if (!res.ok) {
+    let serverText = '';
+    try {
+      // pokušaj da iščitaš odgovor i verbalizuješ ga
+      const ct = res.headers.get('content-type') || '';
+      if (ct.includes('application/json')) {
+        const obj = await res.json();
+        // uzmi nešto smisleno umesto celog JSON-a
+        serverText = obj.message || obj.error || obj.detail || '';
+      } else {
+        serverText = await res.text();
+      }
+    } catch(_) {}
+
+    const base = (customMap && customMap[res.status]) || friendlyHttpMessage(res);
+    const msg = appendServerText && serverText && serverText !== base
+      ? (base + ' – ' + serverText)
+      : base;
+
+    showMsg(targetId, msg);
+    throw new Error(msg);
+  }
+
+  const ct = res.headers.get('content-type') || '';
+  return ct.includes('application/json') ? res.json() : res.text();
+}
+window.fetchJSON = fetchJSON;
+
+/* ---------- AUTH ---------- */
+
+async function login(email, lozinka) {
+  // NE lepi serverText uz poruku (da ne vidimo { "message": ... })
+  const data = await fetchJSON(
+    '/api/auth/login',
+    {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ email, lozinka })
+    },
+    'loginError',
+    { 401: 'Pogrešan email ili lozinka.' },
+    { appendServerText: false }   // <<— OVDE JE KLJUČ
+  );
+
+  const token = data.token;
+  localStorage.setItem('jwt', token);
+
+  try {
+    const raw = await fetchJSON('/api/whoami', { headers: { 'Authorization': 'Bearer ' + token }});
+    localStorage.setItem('roles', JSON.stringify(normalizeRoles(raw)));
+  } catch (_) {
+    localStorage.setItem('roles', '[]');
+  }
+  return token;
+}
+
+
+function logout(){
+  localStorage.removeItem('jwt');
+  localStorage.removeItem('roles');
+}
+
+function authHeader(){
+  const t = localStorage.getItem('jwt');
+  return t ? { 'Authorization': 'Bearer ' + t } : {};
+}
+
+// Link "Izveštaji" prikazati samo ADMIN-u (ako element postoji na strani)
+function showAdminMenu(){
+  try{
+    const link = document.getElementById('navIzvestaji');
+    if (!link) return;
+    const roles = JSON.parse(localStorage.getItem('roles')||'[]');
+    const isAdmin = roles.some(r => r.authority === 'ROLE_ADMIN');
+    link.style.display = isAdmin ? 'inline' : 'none';
+  }catch(e){}
+}
+
+// Ako ima dugme #btnLogin na strani, okači login handler
+document.addEventListener('DOMContentLoaded', () => {
+  const btn = document.getElementById('btnLogin');
+  if (!btn) return;
+  btn.onclick = async () => {
+    const email = (document.getElementById('email')?.value || '').trim();
+    const pwd   = (document.getElementById('pwd')?.value || '');
+    const out   = document.getElementById('out'); // stari izlaz (ako postoji)
+    const errEl = document.getElementById('loginError'); // novi lep izlaz
+
+    if (errEl) errEl.textContent = 'Prijavljivanje...';
+    else if (out) out.textContent = 'Prijavljivanje...';
+
+    try {
+      await login(email, pwd);
+      if (errEl) errEl.textContent = 'Uspešno! Preusmeravam...';
+      else if (out) out.textContent = 'Uspešno! Preusmeravam...';
+      setTimeout(() => location.href='/', 600);
+    } catch (e) {
+      if (errEl) errEl.textContent = e.message;
+      else if (out) out.textContent = e.message;
+      else alert(e.message);
+    }
+  };
+});

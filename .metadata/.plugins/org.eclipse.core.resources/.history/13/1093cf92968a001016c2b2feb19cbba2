@@ -1,0 +1,196 @@
+package com.veterinarska.stanica.controller;
+
+import com.veterinarska.stanica.dto.PregledDTO;
+import com.veterinarska.stanica.mapper.AppMapper;
+import com.veterinarska.stanica.model.Pregled;
+import com.veterinarska.stanica.repository.KorisnikRepository;
+import com.veterinarska.stanica.repository.LjubimacRepository;
+import com.veterinarska.stanica.repository.PregledRepository;
+import com.veterinarska.stanica.repository.UslugaRepository;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.*;
+
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.List;
+
+import static com.veterinarska.stanica.mapper.AppMapper.toDTO;
+
+@RestController
+@RequestMapping("/api/pregledi")
+public class PregledController {
+
+    private final PregledRepository repo;
+    private final LjubimacRepository ljubimacRepo;
+    private final KorisnikRepository korisnikRepo;
+    private final UslugaRepository uslugaRepo;
+
+    public PregledController(PregledRepository repo,
+                             LjubimacRepository ljubimacRepo,
+                             KorisnikRepository korisnikRepo,
+                             UslugaRepository uslugaRepo) {
+        this.repo = repo;
+        this.ljubimacRepo = ljubimacRepo;
+        this.korisnikRepo = korisnikRepo;
+        this.uslugaRepo = uslugaRepo;
+    }
+
+    private boolean hasRole(Authentication a, String role) {
+        return a != null && a.getAuthorities().stream()
+                .anyMatch(ga -> ga.getAuthority().equals("ROLE_" + role));
+    }
+
+    // CREATE (VLASNIK/ADMIN) -> DTO
+    @PostMapping
+    public ResponseEntity<?> dodaj(@RequestBody Pregled p, Authentication auth) {
+        if (p == null) return ResponseEntity.badRequest().body("Prazan payload");
+        if (p.getLjubimac() == null || p.getLjubimac().getId() == null)
+            return ResponseEntity.badRequest().body("Nedostaje ljubimac_id");
+        if (p.getVeterinar() == null || p.getVeterinar().getId() == null)
+            return ResponseEntity.badRequest().body("Nedostaje veterinar_id");
+        if (p.getUsluga() == null || p.getUsluga().getId() == null)
+            return ResponseEntity.badRequest().body("Nedostaje usluga_id");
+
+        var ljubimac = ljubimacRepo.findById(p.getLjubimac().getId())
+                .orElseThrow(() -> new RuntimeException("Ljubimac ne postoji"));
+        var veterinar = korisnikRepo.findById(p.getVeterinar().getId())
+                .orElseThrow(() -> new RuntimeException("Veterinar ne postoji"));
+        var usluga = uslugaRepo.findById(p.getUsluga().getId())
+                .orElseThrow(() -> new RuntimeException("Usluga ne postoji"));
+
+        // ako je VLASNIK — može samo za sopstvenog ljubimca
+        if (hasRole(auth, "VLASNIK")) {
+            String email = auth.getName();
+            if (ljubimac.getVlasnik() == null || !email.equals(ljubimac.getVlasnik().getEmail())) {
+                return ResponseEntity.status(403).body("Nemate dozvolu nad ovim ljubimcem.");
+            }
+        }
+
+        p.setLjubimac(ljubimac);
+        p.setVeterinar(veterinar);
+        p.setUsluga(usluga);
+
+        var sacuvan = repo.save(p);
+        return ResponseEntity.ok(toDTO(sacuvan));
+    }
+
+    // READ (filtrirano po ulozi) -> DTO
+    @GetMapping
+    public List<PregledDTO> svi(Authentication auth) {
+        if (auth == null) return List.of();
+        String email = auth.getName();
+
+        if (hasRole(auth, "ADMIN")) {
+            return repo.findAll().stream().map(AppMapper::toDTO).toList();
+        }
+        if (hasRole(auth, "VLASNIK")) {
+            return repo.findAllByLjubimac_Vlasnik_Email(email)
+                    .stream().map(AppMapper::toDTO).toList();
+        }
+        if (hasRole(auth, "VETERINAR")) {
+            return repo.findAllByVeterinar_Email(email)
+                    .stream().map(AppMapper::toDTO).toList();
+        }
+        return List.of();
+    }
+
+    // /api/pregledi/po-danu?date=2025-09-01
+    @GetMapping("/po-danu")
+    public List<PregledDTO> poDanu(@RequestParam String date, Authentication auth) {
+        LocalDate dan = LocalDate.parse(date);
+        LocalDateTime start = dan.atStartOfDay();
+        LocalDateTime end   = start.plusDays(1);
+
+        if (auth == null) return List.of();
+
+        if (hasRole(auth, "ADMIN")) {
+            return repo.findAllByDatumPocetkaBetween(start, end)
+                    .stream().map(AppMapper::toDTO).toList();
+        }
+        if (hasRole(auth, "VLASNIK")) {
+            return repo.findAllByLjubimac_Vlasnik_Email(auth.getName()).stream()
+                    .filter(p -> p.getDatumPocetka()!=null
+                            && !p.getDatumPocetka().isBefore(start)
+                            &&  p.getDatumPocetka().isBefore(end))
+                    .map(AppMapper::toDTO)
+                    .toList();
+        }
+        if (hasRole(auth, "VETERINAR")) {
+            var vet = korisnikRepo.findByEmail(auth.getName()).orElseThrow();
+            return repo.findAllByVeterinar_IdAndDatumPocetkaBetween(vet.getId(), start, end)
+                    .stream().map(AppMapper::toDTO).toList();
+        }
+        return List.of();
+    }
+
+    // /api/pregledi/po-veterinaru?veterinarId=3&date=2025-09-01 (date opciono)
+    @GetMapping("/po-veterinaru")
+    public List<PregledDTO> poVeterinaru(@RequestParam Long veterinarId,
+                                         @RequestParam(required = false) String date,
+                                         Authentication auth) {
+        if (auth == null) return List.of();
+        if (!(hasRole(auth,"ADMIN") || hasRole(auth,"VETERINAR"))) {
+            return List.of();
+        }
+        if (date == null || date.isBlank()) {
+            return repo.findAllByVeterinar_Id(veterinarId)
+                    .stream().map(AppMapper::toDTO).toList();
+        }
+        LocalDate dan = LocalDate.parse(date);
+        LocalDateTime start = dan.atStartOfDay();
+        LocalDateTime end   = start.plusDays(1);
+
+        return repo.findAllByVeterinar_IdAndDatumPocetkaBetween(veterinarId, start, end)
+                .stream().map(AppMapper::toDTO).toList();
+    }
+
+    // UPDATE (VLASNIK menja termin) -> DTO
+    @PutMapping("/{id}")
+    public ResponseEntity<?> izmeniTermin(@PathVariable Long id, @RequestBody Pregled p) {
+        return repo.findById(id)
+                .map(postojeci -> {
+                    if (p.getUsluga() != null && p.getUsluga().getId() != null) {
+                        var u = uslugaRepo.findById(p.getUsluga().getId())
+                                .orElseThrow(() -> new RuntimeException("Usluga ne postoji"));
+                        postojeci.setUsluga(u);
+                    }
+                    if (p.getDatumPocetka() != null) {
+                        postojeci.setDatumPocetka(p.getDatumPocetka());
+                    }
+                    postojeci.setDatumZavrsetka(p.getDatumZavrsetka());
+                    postojeci.setNapomena(p.getNapomena());
+                    var sacuvan = repo.save(postojeci);
+                    return ResponseEntity.ok(toDTO(sacuvan));
+                })
+                .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    // DELETE (VLASNIK otkazuje)
+    @DeleteMapping("/{id}")
+    public ResponseEntity<?> otkazi(@PathVariable Long id) {
+        if (!repo.existsById(id)) return ResponseEntity.notFound().build();
+        repo.deleteById(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    public static record StatusDTO(String status) {}
+
+    // PATCH (VETERINAR/ADMIN menja status) -> DTO
+    @PatchMapping("/{id}/status")
+    public ResponseEntity<?> promeniStatus(@PathVariable Long id, @RequestBody StatusDTO dto) {
+        return repo.findById(id)
+                .map(p -> {
+                    try {
+                        p.setStatus(Enum.valueOf(
+                                com.veterinarska.stanica.model.StatusPregleda.class, dto.status()));
+                    } catch (IllegalArgumentException e) {
+                        return ResponseEntity.badRequest()
+                                .body("Dozvoljeni statusi: ZAKAZAN, POTVRĐEN, OBAVLJEN, OTKAZAN");
+                    }
+                    var sacuvan = repo.save(p);
+                    return ResponseEntity.ok(toDTO(sacuvan));
+                })
+                .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+}

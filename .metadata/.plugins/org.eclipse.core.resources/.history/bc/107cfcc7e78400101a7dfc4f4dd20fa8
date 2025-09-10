@@ -1,0 +1,18 @@
+package com.veterinarska.stanica.web;
+
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.GetMapping;
+
+@Controller
+public class PagesController {
+    @GetMapping("/")
+    public String home() {
+        return "home"; // WEB-INF/jsp/home.jsp
+    }
+    
+    @GetMapping("/prijava")
+    public String prijava() { 
+        return "login"; // WEB-INF/jsp/login.jsp
+    }
+
+}

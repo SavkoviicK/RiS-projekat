@@ -1,0 +1,14 @@
+package com.veterinarska.stanica.controller;
+
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.GetMapping;
+
+@Controller
+public class PrijateljiPageController {
+
+    @GetMapping("/prijatelji")
+    public String prikazi() {
+        // samo renderuje WEB-INF/views/prijatelji.jsp
+        return "prijatelji";
+    }
+}

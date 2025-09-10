@@ -1,0 +1,73 @@
+package com.veterinarska.stanica.controller;
+
+import org.springframework.http.ResponseEntity;
+import org.springframework.validation.BindingResult;
+import org.springframework.web.bind.annotation.*;
+import java.util.List;
+
+import com.veterinarska.stanica.model.Usluga;
+import com.veterinarska.stanica.repository.UslugaRepository;
+
+import jakarta.validation.Valid;
+
+import static com.veterinarska.stanica.mapper.AppMapper.toDTO;
+import com.veterinarska.stanica.dto.UslugaDTO;
+
+
+@RestController
+@RequestMapping("/api/usluge")
+public class UslugaController {
+
+    private final UslugaRepository repo;
+
+    public UslugaController(UslugaRepository repo) {
+        this.repo = repo;
+    }
+
+    // Dodaj uslugu
+    @PostMapping
+    public ResponseEntity<?> dodaj(@Valid @RequestBody Usluga u, BindingResult result) {
+        if (result.hasErrors()) {
+            return ResponseEntity.badRequest().body(result.getAllErrors());
+        }
+        return ResponseEntity.ok(repo.save(u));
+    }
+
+    @GetMapping
+    public java.util.List<UslugaDTO> svi() {
+        return repo.findAll().stream().map(AppMapper::toDTO).toList();
+    }
+
+    // POST
+    @PostMapping
+    public org.springframework.http.ResponseEntity<?> dodaj(
+            @jakarta.validation.Valid @RequestBody Usluga u,
+            org.springframework.validation.BindingResult result) {
+        if (result.hasErrors()) return org.springframework.http.ResponseEntity.badRequest().body(result.getAllErrors());
+        var sacuvana = repo.save(u);
+        return org.springframework.http.ResponseEntity.ok(toDTO(sacuvana));
+    }
+
+    // PUT
+    @PutMapping("/{id}")
+    public org.springframework.http.ResponseEntity<?> izmeni(@PathVariable Long id,
+            @jakarta.validation.Valid @RequestBody Usluga u,
+            org.springframework.validation.BindingResult result) {
+        if (result.hasErrors()) return org.springframework.http.ResponseEntity.badRequest().body(result.getAllErrors());
+        return repo.findById(id)
+            .map(postojeca -> {
+                postojeca.setNaziv(u.getNaziv());
+                postojeca.setOpis(u.getOpis());
+                return org.springframework.http.ResponseEntity.ok(toDTO(repo.save(postojeca)));
+            })
+            .orElseGet(() -> org.springframework.http.ResponseEntity.notFound().build());
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<?> obrisi(@PathVariable Long id) {
+        if (!repo.existsById(id)) return ResponseEntity.notFound().build();
+        repo.deleteById(id);
+        return ResponseEntity.noContent().build();
+    }
+
+}

@@ -1,0 +1,45 @@
+package com.veterinarska.stanica.dto;
+
+import java.time.LocalDateTime;
+
+public class PregledDTO {
+    private Long id;
+
+    private Long ljubimacId;
+    private String ljubimacIme;
+
+    private Long vlasnikId;
+    private String vlasnikEmail;
+
+    private Long veterinarId;
+    private String veterinarIme;
+
+    private Long uslugaId;
+    private String uslugaNaziv;
+
+    private LocalDateTime datumPocetka;
+    private LocalDateTime datumZavrsetka;
+
+    private String status;
+    private String napomena;
+
+    public PregledDTO() {}
+
+    public PregledDTO(Long id, Long ljubimacId, String ljubimacIme,
+                      Long vlasnikId, String vlasnikEmail,
+                      Long veterinarId, String veterinarIme,
+                      Long uslugaId, String uslugaNaziv,
+                      LocalDateTime datumPocetka, LocalDateTime datumZavrsetka,
+                      String status, String napomena) {
+        this.id = id;
+        this.ljubimacId = ljubimacId; this.ljubimacIme = ljubimacIme;
+        this.vlasnikId = vlasnikId; this.vlasnikEmail = vlasnikEmail;
+        this.veterinarId = veterinarId; this.veterinarIme = veterinarIme;
+        this.uslugaId = uslugaId; this.uslugaNaziv = uslugaNaziv;
+        this.datumPocetka = datumPocetka; this.datumZavrsetka = datumZavrsetka;
+        this.status = status; this.napomena = napomena;
+    }
+
+    // getteri/setteri ...
+    // (možeš generisati u Eclipse)
+}

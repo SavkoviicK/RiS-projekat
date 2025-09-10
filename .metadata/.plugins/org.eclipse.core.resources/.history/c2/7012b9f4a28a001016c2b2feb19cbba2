@@ -1,0 +1,21 @@
+package com.veterinarska.stanica.repository;
+
+import com.veterinarska.stanica.model.Poruka;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+
+import java.util.List;
+
+public interface PorukaRepository extends JpaRepository<Poruka, Long> {
+	
+	List<Poruka> findByPosiljalacAndPrimalac(Korisnik posiljalac, Korisnik primalac);
+    List<Poruka> findByPrimalac(Korisnik primalac);
+    
+    @Query("""
+      from Poruka p
+      where (p.posiljalac.id = :a and p.primalac.id = :b)
+         or (p.posiljalac.id = :b and p.primalac.id = :a)
+      order by p.vreme asc
+    """)
+    List<Poruka> konverzacija(long a, long b);
+}

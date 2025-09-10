@@ -1,0 +1,76 @@
+package com.veterinarska.stanica.config;
+
+import com.veterinarska.stanica.security.JwtAuthFilter;
+import jakarta.servlet.DispatcherType;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+
+@Configuration
+public class SecurityConfig {
+
+    private final JwtAuthFilter jwtAuthFilter;
+
+    public SecurityConfig(JwtAuthFilter jwtAuthFilter) {
+        this.jwtAuthFilter = jwtAuthFilter;
+    }
+
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
+
+    @Bean
+    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+        http
+            .csrf(AbstractHttpConfigurer::disable)
+            .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .authorizeHttpRequests(auth -> auth
+                .dispatcherTypeMatchers(DispatcherType.FORWARD, DispatcherType.ERROR).permitAll()
+                .requestMatchers("/", "/home", "/ljubimci", "/pregledi", "/poruke",
+                                 "/izvestaji", "/prijava", "/login", "/registracija", "/karton",
+                                 "/img/**", "/css/**", "/js/**", "/webjars/**", "/favicon.ico")
+                .permitAll()
+                .requestMatchers("/prijatelji").permitAll()
+                .requestMatchers("/api/auth/**").permitAll()
+                .requestMatchers("/v3/api-docs/**", "/swagger-ui.html", "/swagger-ui/**").permitAll()
+
+                .requestMatchers("/api/izvestaji/**").hasRole("ADMIN")
+
+                .requestMatchers(HttpMethod.GET, "/api/usluge/resolve", "/api/usluge/resolve/**").authenticated()
+                .requestMatchers("/api/usluge/**").hasRole("ADMIN")
+
+                .requestMatchers("/api/korisnici/veterinari").authenticated()
+                .requestMatchers("/api/korisnici/**").hasAnyRole("ADMIN","VETERINAR","VLASNIK")
+
+                .requestMatchers(HttpMethod.POST,   "/api/pregledi/**").hasAnyRole("VLASNIK","ADMIN")
+                .requestMatchers(HttpMethod.PUT,    "/api/pregledi/**").hasAnyRole("VLASNIK","ADMIN")
+                .requestMatchers(HttpMethod.DELETE, "/api/pregledi/**").hasAnyRole("VLASNIK","ADMIN")
+                .requestMatchers(HttpMethod.PATCH,  "/api/pregledi/*/status").hasAnyRole("VETERINAR","ADMIN")
+                .requestMatchers(HttpMethod.GET,    "/api/pregledi/**").authenticated()
+
+                // --- Medicinski zapisi (specifična pravila PRE catch-all) ---
+                .requestMatchers(HttpMethod.GET,  "/api/medicinski-zapisi/moji-ljubimci-za-izvestaj").hasAnyRole("VETERINAR","ADMIN")
+                .requestMatchers(HttpMethod.GET,  "/api/medicinski-zapisi/moji-izvestaji").hasAnyRole("VLASNIK","ADMIN")
+                .requestMatchers(HttpMethod.POST, "/api/medicinski-zapisi").hasAnyRole("VETERINAR","ADMIN")
+                // sve ostalo iz /api/medicinski-zapisi/** dostupno veterinaru i adminu
+                .requestMatchers("/api/medicinski-zapisi/**").hasAnyRole("VETERINAR","ADMIN")
+
+                .requestMatchers("/api/ljubimci/**").hasAnyRole("VLASNIK","ADMIN")
+
+                .requestMatchers("/api/prijatelji/**", "/api/poruke/**").authenticated()
+
+                .anyRequest().authenticated()
+            )
+            .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+
+        return http.build();
+    }
+}

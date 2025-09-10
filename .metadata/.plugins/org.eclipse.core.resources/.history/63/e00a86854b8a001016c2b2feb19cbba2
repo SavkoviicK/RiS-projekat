@@ -1,0 +1,122 @@
+<%@ page contentType="text/html; charset=UTF-8" %>
+<!DOCTYPE html>
+<html lang="sr">
+<head>
+  <meta charset="UTF-8">
+  <title>Izveštaji</title>
+  <style>
+    body{font-family:system-ui,Arial;margin:0;background:#f7f9fb}
+    header{display:flex;align-items:center;justify-content:space-between;gap:16px;
+           padding:16px 24px;background:#fff;border-bottom:1px solid #e6e6e6}
+    .wrap{max-width:1100px;margin:24px auto;padding:0 16px}
+    nav a{margin-right:12px;text-decoration:none;color:#0b5ed7}
+    .card{background:#fff;border:1px solid #e6e6e6;border-radius:12px;padding:16px}
+    button{background:#0b5ed7;color:#fff;border:none;border-radius:8px;padding:8px 12px;cursor:pointer}
+    button:disabled{opacity:.6;cursor:not-allowed}
+    .muted{color:#666}
+    iframe{width:100%;height:70vh;border:1px solid #e6e6e6;border-radius:8px;background:#fff}
+  </style>
+</head>
+<body>
+<header>
+  <div style="display:flex;align-items:center;gap:12px">
+    <img src="/img/logo.png" alt="Logo" style="height:46px">
+    <strong>Veterinarska stanica</strong>
+  </div>
+  <nav>
+    <a href="/">Početna</a>
+    <a href="/ljubimci">Ljubimci</a>
+    <a href="/pregledi">Pregledi</a>
+    <a href="/poruke">Poruke</a>
+    <a id="navIzvestaji" href="/izvestaji" style="display:none">Izveštaji</a>
+  </nav>
+  <div id="userBox"><span id="userInfo"></span>
+    <button id="btnLogout" style="display:none;margin-left:8px">Odjava</button>
+  </div>
+</header>
+
+<div class="wrap">
+  <h1>📄 Izveštaji</h1>
+  <p id="msg" class="muted">Samo ADMIN može da preuzme izveštaje.</p>
+
+  <div id="adminPanel" class="card" style="display:none">
+    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px">
+      <button id="btnPoDanu">Pregledi po danu (PDF)</button>
+      <button id="btnPoVet">Pregledi po veterinaru (PDF)</button>
+    </div>
+    <iframe id="pdf" style="display:none"></iframe>
+  </div>
+</div>
+
+<script src="/js/auth.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  // header info
+  (function paintHeader(){
+    const info=document.getElementById('userInfo'), btn=document.getElementById('btnLogout');
+    const t=localStorage.getItem('jwt');
+    if(t){ info.textContent='Prijavljen'; btn.style.display='inline-block'; btn.onclick=()=>{ logout(); location.href='/'; }; }
+    else { info.innerHTML='<a href="/prijava">Prijavi se</a>'; btn.style.display='none'; }
+  })();
+
+  // prikaži admin link u meniju (ako postoji funkcija)
+  try { if (typeof showAdminMenu==='function') showAdminMenu(); } catch(e){}
+
+  // proveri da li je admin i sakrij/otkrij panel
+  (function gateAdmin(){
+    try{
+      const roles = JSON.parse(localStorage.getItem('roles')||'[]');
+      const names = roles.map(r=>r.authority || r);
+      const isAdmin = names.includes('ROLE_ADMIN');
+      document.getElementById('adminPanel').style.display = isAdmin ? 'block' : 'none';
+      document.getElementById('msg').textContent = isAdmin
+        ? 'Kliknite na neko dugme da prikažete PDF izveštaj.'
+        : 'Ova stranica je dostupna samo administratorima.';
+    }catch(e){}
+  })();
+
+  // helper za fetch PDF sa tokenom
+  async function fetchPdf(url){
+    const res = await fetch(url, { headers: authHeader() });
+    if(!res.ok){
+      const txt = await res.text();
+      throw new Error('Greška ' + res.status + (txt?': '+txt:''));
+    }
+    return await res.blob();
+  }
+
+  // dugmad
+  const btnPoDanu = document.getElementById('btnPoDanu');
+  const btnPoVet  = document.getElementById('btnPoVet');
+  const iframe = document.getElementById('pdf');
+  const msg = document.getElementById('msg');
+
+  if (btnPoDanu) btnPoDanu.onclick = async ()=>{
+    msg.textContent = 'Učitavam PDF...';
+    try{
+      const blob = await fetchPdf('/api/izvestaji/pregledi-po-danu.pdf');
+      iframe.src = URL.createObjectURL(blob);
+      iframe.style.display='block';
+      msg.textContent = 'Izveštaj učitan.';
+    }catch(e){
+      msg.textContent = e.message;
+      iframe.style.display='none';
+    }
+  };
+
+  if (btnPoVet) btnPoVet.onclick = async ()=>{
+    msg.textContent = 'Učitavam PDF...';
+    try{
+      const blob = await fetchPdf('/api/izvestaji/pregledi-po-veterinaru.pdf');
+      iframe.src = URL.createObjectURL(blob);
+      iframe.style.display='block';
+      msg.textContent = 'Izveštaj učitan.';
+    }catch(e){
+      msg.textContent = e.message;
+      iframe.style.display='none';
+    }
+  };
+});
+</script>
+</body>
+</html>

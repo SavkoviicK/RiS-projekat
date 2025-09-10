@@ -1,0 +1,25 @@
+package com.veterinarska.stanica.repository;
+
+import com.veterinarska.stanica.model.Korisnik;
+import com.veterinarska.stanica.model.Prijateljstvo;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+
+import java.util.List;
+
+public interface PrijateljstvoRepository extends JpaRepository<Prijateljstvo, Long> {
+
+    @Query("""
+      select count(p) > 0 from Prijateljstvo p
+      where (p.korisnik1.id = :a and p.korisnik2.id = :b)
+         or (p.korisnik1.id = :b and p.korisnik2.id = :a)
+    """)
+    boolean jesuPrijatelji(long a, long b);
+
+    // Umesto CASE: dve jednostavne projekcije
+    @Query("select p.korisnik2 from Prijateljstvo p where p.korisnik1.id = :userId")
+    List<Korisnik> prijateljiGdeJeOnPrvi(long userId);
+
+    @Query("select p.korisnik1 from Prijateljstvo p where p.korisnik2.id = :userId")
+    List<Korisnik> prijateljiGdeJeOnDrugi(long userId);
+}

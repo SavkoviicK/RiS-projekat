@@ -1,0 +1,147 @@
+package com.veterinarska.stanica.mapper;
+
+import com.veterinarska.stanica.dto.*;
+import com.veterinarska.stanica.model.*;
+
+public class AppMapper {
+
+    public static KorisnikDTO toDTO(Korisnik k) {
+        if (k == null) return null;
+        return new KorisnikDTO(k.getId(), k.getEmail(), k.getIme(), k.getPrezime(), k.getUloga());
+    }
+
+    public static LjubimacDTO toDTO(Ljubimac l) {
+        if (l == null) return null;
+
+        Korisnik vlasnik = l.getVlasnik();
+        Long vlasnikId = (vlasnik != null) ? vlasnik.getId() : null;
+        String vlasnikEmail = (vlasnik != null) ? vlasnik.getEmail() : null;
+
+        LjubimacDTO dto = new LjubimacDTO(
+                l.getId(),
+                l.getIme(),
+                l.getVrsta(),
+                l.getRasa(),
+                l.getPol(),
+                vlasnikId,
+                vlasnikEmail
+        );
+        dto.setNapomena(l.getNapomena());
+
+        return dto;
+    }
+
+    public static UslugaDTO toDTO(Usluga u) {
+        if (u == null) return null;
+        return new UslugaDTO(u.getId(), u.getNaziv(), u.getOpis());
+    }
+
+    public static PregledDTO toDTO(Pregled p) {
+        if (p == null) return null;
+
+        Ljubimac l = p.getLjubimac();
+        Korisnik vlasnik = (l != null) ? l.getVlasnik() : null;
+        Korisnik v = p.getVeterinar();
+        Usluga u = p.getUsluga();
+
+        Long ljubimacId = (l != null) ? l.getId() : null;
+        String ljubimacIme = (l != null) ? l.getIme() : null;
+
+        Long vlasnikId = (vlasnik != null) ? vlasnik.getId() : null;
+        String vlasnikEmail = (vlasnik != null) ? vlasnik.getEmail() : null;
+
+        Long veterinarId = (v != null) ? v.getId() : null;
+        String veterinarIme = (v != null) ? (v.getIme() + " " + v.getPrezime()) : null;
+
+        Long uslugaId = (u != null) ? u.getId() : null;
+        String uslugaNaziv = (u != null) ? u.getNaziv() : null;
+
+        String status = (p.getStatus() != null) ? p.getStatus().name() : null;
+
+        return new PregledDTO(
+                p.getId(),
+                ljubimacId,
+                ljubimacIme,
+                vlasnikId,
+                vlasnikEmail,
+                veterinarId,
+                veterinarIme,
+                uslugaId,
+                uslugaNaziv,
+                p.getDatumPocetka(),
+                p.getDatumZavrsetka(),
+                status,
+                p.getNapomena()
+        );
+    }
+
+    public static MedicinskiZapisDTO toDTO(MedicinskiZapis m) {
+        if (m == null) return null;
+
+        Ljubimac l = m.getLjubimac();
+        Korisnik v = m.getVeterinar();
+
+        Long ljubimacId = (l != null) ? l.getId() : null;
+        String ljubimacIme = (l != null) ? l.getIme() : null;
+
+        Long veterinarId = (v != null) ? v.getId() : null;
+        String veterinarIme = (v != null) ? (v.getIme() + " " + v.getPrezime()) : null;
+
+        return new MedicinskiZapisDTO(
+                m.getId(),
+                ljubimacId,
+                ljubimacIme,
+                veterinarId,
+                veterinarIme,
+                m.getDijagnoza(),
+                m.getTerapija(),
+                m.getDatum()
+        );
+    }
+
+    public static PorukaDTO toDTO(Poruka p) {
+        if (p == null) return null;
+
+        Korisnik pos = p.getPosiljalac();
+        Korisnik pri = p.getPrimalac();
+
+        Long posId = (pos != null) ? pos.getId() : null;
+        String posEmail = (pos != null) ? pos.getEmail() : null;
+
+        Long priId = (pri != null) ? pri.getId() : null;
+        String priEmail = (pri != null) ? pri.getEmail() : null;
+
+        return new PorukaDTO(
+                p.getId(),
+                posId,
+                posEmail,
+                priId,
+                priEmail,
+                p.getSadrzaj(),
+                p.getVreme()
+        );
+    }
+
+    public static ZahtevZaPrijateljstvoDTO toDTO(ZahtevZaPrijateljstvo z) {
+        if (z == null) return null;
+
+        Korisnik pos = z.getPosiljalac();
+        Korisnik pri = z.getPrimalac();
+
+        Long posId = (pos != null) ? pos.getId() : null;
+        String posEmail = (pos != null) ? pos.getEmail() : null;
+
+        Long priId = (pri != null) ? pri.getId() : null;
+        String priEmail = (pri != null) ? pri.getEmail() : null;
+
+        return new ZahtevZaPrijateljstvoDTO(
+                z.getId(),
+                posId,
+                posEmail,
+                priId,
+                priEmail,
+                z.getStatus(),
+                z.getKreiran()
+        );
+    }
+}

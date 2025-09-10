@@ -1,0 +1,34 @@
+package com.veterinarska.stanica.controller;
+
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.GetMapping;
+
+@Controller
+public class PagesController {
+
+    @GetMapping({"/", "/home"})
+    public String home() { return "home"; }
+
+    @GetMapping("/prijava")
+    public String prijava() { return "login"; }
+
+    @GetMapping("/ljubimci")
+    public String ljubimci() { return "ljubimci"; }
+
+    @GetMapping("/pregledi")
+    public String pregledi() { return "pregledi"; }
+
+    @GetMapping("/poruke")
+    public String poruke() { return "poruke"; }
+
+    @GetMapping("/izvestaji")
+    public String izvestaji() { return "izvestaji"; }
+    
+    @GetMapping("/registracija")
+    public String registracija() { return "registracija"; }
+    
+    @GetMapping("/prijatelji")
+    public String prijatelji() {
+        return "prijatelji"; // prijatelji.jsp (ako nemaš već)
+    }
+}

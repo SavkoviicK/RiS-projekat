@@ -1,0 +1,117 @@
+<%@ page contentType="text/html; charset=UTF-8" %>
+<!DOCTYPE html>
+<html lang="sr">
+<head>
+  <meta charset="UTF-8" />
+  <title>Registracija</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    body{font-family:system-ui,Arial;margin:0;background:#f7f9fb}
+    header{display:flex;align-items:center;justify-content:space-between;gap:16px;
+           padding:16px 24px;background:#fff;border-bottom:1px solid #e6e6e6}
+    nav a{margin-right:12px;text-decoration:none;color:#0b5ed7}
+    .wrap{max-width:520px;margin:24px auto;padding:0 16px}
+    .card{background:#fff;border:1px solid #e6e6e6;border-radius:12px;padding:16px}
+    label{display:block;margin:10px 0 6px}
+    input,select{width:100%;padding:10px;border:1px solid #dcdcdc;border-radius:8px}
+    button{background:#0b5ed7;color:#fff;border:none;border-radius:8px;padding:10px 16px;cursor:pointer;width:100%}
+    button:disabled{opacity:.6;cursor:not-allowed}
+    .muted{color:#666;font-size:.9em;margin-top:8px}
+  </style>
+  <script defer src="/js/auth.js"></script>
+</head>
+<body>
+<header>
+  <div style="display:flex;align-items:center;gap:12px">
+    <img src="/img/logo.png" alt="Logo" style="height:46px">
+    <strong>Veterinarska stanica</strong>
+  </div>
+  <nav>
+    <a href="/">Početna</a>
+    <a href="/ljubimci">Ljubimci</a>
+    <a href="/pregledi">Pregledi</a>
+    <a href="/poruke">Poruke</a>
+    <a id="navIzvestaji" href="/izvestaji" style="display:none">Izveštaji</a>
+  </nav>
+  <div id="userBox"><span id="userInfo"></span>
+    <button id="btnLogout" style="display:none;margin-left:8px">Odjava</button>
+  </div>
+</header>
+
+<div class="wrap">
+  <h1>📝 Registracija</h1>
+  <div class="card">
+    <label>Ime</label>
+    <input id="ime" placeholder="npr. Ana" required>
+    <label>Prezime</label>
+    <input id="prezime" placeholder="npr. Jovanović" required>
+    <label>Email</label>
+    <input id="email" type="email" placeholder="ana@example.com" required>
+    <label>Lozinka</label>
+    <input id="lozinka" type="password" placeholder="••••••••" required>
+    <label>Uloga (obavezno)</label>
+    <select id="uloga" required>
+      <option value="">--Izaberi--</option>
+      <option value="VLASNIK">Vlasnik</option>
+      <option value="VETERINAR">Veterinar</option>
+      <option value="ADMIN">Admin</option>
+    </select>
+
+    <div style="height:12px"></div>
+    <button id="btnReg">Registruj se</button>
+    <div id="out" class="muted"></div>
+  </div>
+</div>
+
+<script src="/js/auth.js"></script>
+<script>
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', paintUserInfoHeader);
+  } else {
+    paintUserInfoHeader();
+  }
+
+  document.getElementById('btnReg').addEventListener('click', async ()=>{
+    const out=document.getElementById('out');
+    const btn=document.getElementById('btnReg');
+
+    const body={
+      ime: (document.getElementById('ime').value||'').trim(),
+      prezime: (document.getElementById('prezime').value||'').trim(),
+      email: (document.getElementById('email').value||'').trim(),
+      lozinka: (document.getElementById('lozinka').value||''),
+      uloga: (document.getElementById('uloga').value||'')
+    };
+
+    if(!body.ime || !body.prezime || !body.email || !body.lozinka || !body.uloga){
+      out.textContent='Popunite sva polja i izaberite ulogu.';
+      return;
+    }
+
+    btn.disabled=true; out.textContent='Registrujem…';
+    try{
+      const res = await fetch('/api/auth/registracija', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify(body)
+      });
+      if(!res.ok){
+        const txt = await res.text();
+        throw new Error('Greška '+res.status+(txt?': '+txt:''));
+      }
+      out.textContent='Uspešno! Prijavljujem…';
+      try{
+        await login(body.email, body.lozinka);
+        location.href='/';
+      }catch(e){
+        out.textContent='Registrovan korisnik. Sada se prijavite na stranici Prijava.';
+      }
+    }catch(e){
+      out.textContent=e.message;
+    }finally{
+      btn.disabled=false;
+    }
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,91 @@
+package com.veterinarska.stanica.config;
+
+import com.veterinarska.stanica.security.JwtAuthFilter;
+import jakarta.servlet.DispatcherType;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+
+@Configuration
+public class SecurityConfig {
+
+    private final JwtAuthFilter jwtAuthFilter;
+
+    public SecurityConfig(JwtAuthFilter jwtAuthFilter) {
+        this.jwtAuthFilter = jwtAuthFilter;
+    }
+
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
+
+    @Bean
+    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+        http
+            .csrf(AbstractHttpConfigurer::disable)
+            .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .authorizeHttpRequests(auth -> auth
+                // FORWARD/ERROR
+                .dispatcherTypeMatchers(DispatcherType.FORWARD, DispatcherType.ERROR).permitAll()
+
+                // JSP i statika
+                .requestMatchers("/", "/home", "/ljubimci", "/pregledi", "/poruke",
+                                 "/izvestaji", "/prijava", "/login", "/registracija",
+                                 "/img/**", "/css/**", "/js/**", "/webjars/**", "/favicon.ico")
+                .permitAll()
+
+                // prijatelji JSP
+                .requestMatchers("/prijatelji").permitAll()
+
+                // PUBLIC API (auth)
+                .requestMatchers("/api/auth/**").permitAll()
+
+                // PUBLIC API (registracija korisnika)
+                .requestMatchers(HttpMethod.POST, "/api/korisnici/registracija").permitAll()
+
+                // Swagger/OpenAPI
+                .requestMatchers("/v3/api-docs/**", "/swagger-ui.html", "/swagger-ui/**").permitAll()
+
+                // IZVEŠTAJI – samo ADMIN
+                .requestMatchers("/api/izvestaji/**").hasRole("ADMIN")
+
+                // USLUGE
+                .requestMatchers(HttpMethod.GET, "/api/usluge/resolve", "/api/usluge/resolve/**").authenticated()
+                .requestMatchers("/api/usluge/**").hasRole("ADMIN")
+
+                // KORISNICI (sve ostalo, sem registracije, zahteva auth)
+                .requestMatchers("/api/korisnici/**").hasAnyRole("ADMIN","VETERINAR","VLASNIK")
+
+                // PREGLEDI
+                .requestMatchers(HttpMethod.POST,   "/api/pregledi/**").hasAnyRole("VLASNIK","ADMIN")
+                .requestMatchers(HttpMethod.PUT,    "/api/pregledi/**").hasAnyRole("VLASNIK","ADMIN")
+                .requestMatchers(HttpMethod.DELETE, "/api/pregledi/**").hasAnyRole("VLASNIK","ADMIN")
+                .requestMatchers(HttpMethod.PATCH,  "/api/pregledi/*/status").hasAnyRole("VETERINAR","ADMIN")
+                .requestMatchers(HttpMethod.GET,    "/api/pregledi/**").authenticated()
+
+                // MEDICINSKI ZAPISI
+                .requestMatchers(HttpMethod.POST, "/api/medicinski-zapisi").hasAnyRole("VETERINAR","ADMIN")
+                .requestMatchers("/api/medicinski-zapisi/**").hasAnyRole("VETERINAR","ADMIN")
+
+                // LJUBIMCI
+                .requestMatchers("/api/ljubimci/**").hasAnyRole("VLASNIK","ADMIN")
+
+                // Poruke/prijatelji (API)
+                .requestMatchers("/api/prijatelji/**", "/api/poruke/**").authenticated()
+
+                // sve ostalo
+                .anyRequest().authenticated()
+            )
+            .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+
+        return http.build();
+    }
+}

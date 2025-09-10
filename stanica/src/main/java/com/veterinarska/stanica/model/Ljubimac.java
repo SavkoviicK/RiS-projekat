@@ -1,0 +1,60 @@
+package com.veterinarska.stanica.model;
+
+import jakarta.persistence.*;
+import java.time.LocalDate;
+
+import jakarta.validation.constraints.NotBlank;
+
+
+@Entity
+@Table(name = "ljubimci")
+public class Ljubimac {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @ManyToOne
+    @JoinColumn(name = "vlasnik_id", nullable = false)
+    private Korisnik vlasnik;
+
+    @NotBlank(message="Ime ljubimca je obavezno")
+    @Column(nullable=false, length=100)
+    private String ime;
+
+    @NotBlank(message="Vrsta ljubimca je obavezna")
+    @Column(nullable=false, length=50)
+    private String vrsta;
+    private String rasa;
+
+    @Column(name="datum_rodjenja")
+    private LocalDate datumRodjenja;
+
+    @Column(length=1)
+    private String pol; // "M" ili "Ž"
+
+    private String napomena;
+
+    @Column(name="datum_kreiranja")
+    private LocalDate datumKreiranja = LocalDate.now();
+
+    // getteri i setteri
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
+    public Korisnik getVlasnik() { return vlasnik; }
+    public void setVlasnik(Korisnik vlasnik) { this.vlasnik = vlasnik; }
+    public String getIme() { return ime; }
+    public void setIme(String ime) { this.ime = ime; }
+    public String getVrsta() { return vrsta; }
+    public void setVrsta(String vrsta) { this.vrsta = vrsta; }
+    public String getRasa() { return rasa; }
+    public void setRasa(String rasa) { this.rasa = rasa; }
+    public LocalDate getDatumRodjenja() { return datumRodjenja; }
+    public void setDatumRodjenja(LocalDate datumRodjenja) { this.datumRodjenja = datumRodjenja; }
+    public String getPol() { return pol; }
+    public void setPol(String pol) { this.pol = pol; }
+    public String getNapomena() { return napomena; }
+    public void setNapomena(String napomena) { this.napomena = napomena; }
+    public LocalDate getDatumKreiranja() { return datumKreiranja; }
+    public void setDatumKreiranja(LocalDate datumKreiranja) { this.datumKreiranja = datumKreiranja; }
+}

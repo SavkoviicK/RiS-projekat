@@ -1,0 +1,49 @@
+package com.veterinarska.stanica.model;
+
+import jakarta.persistence.*;
+import java.time.Instant;
+
+@Entity
+@Table(name = "messages")
+public class Message {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @ManyToOne(optional = false)
+    @JoinColumn(name = "sender_id")
+    private Korisnik sender;
+
+    @ManyToOne(optional = false)
+    @JoinColumn(name = "receiver_id")
+    private Korisnik receiver;
+
+    @Lob
+    @Column(nullable = false)
+    private String content;
+
+    @Column(nullable = false)
+    private Instant sentAt = Instant.now();
+
+    @Column(nullable = false)
+    private boolean seen = false;
+
+    // --- get/set ---
+    public Long getId() { return id; }
+
+    public Korisnik getSender() { return sender; }
+    public void setSender(Korisnik sender) { this.sender = sender; }
+
+    public Korisnik getReceiver() { return receiver; }
+    public void setReceiver(Korisnik receiver) { this.receiver = receiver; }
+
+    public String getContent() { return content; }
+    public void setContent(String content) { this.content = content; }
+
+    public Instant getSentAt() { return sentAt; }
+    public void setSentAt(Instant sentAt) { this.sentAt = sentAt; }
+
+    public boolean isSeen() { return seen; }
+    public void setSeen(boolean seen) { this.seen = seen; }
+}

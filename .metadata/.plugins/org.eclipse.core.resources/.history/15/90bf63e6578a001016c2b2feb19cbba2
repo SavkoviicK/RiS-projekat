@@ -1,0 +1,364 @@
+<%@ page contentType="text/html; charset=UTF-8" %>
+<%@ page pageEncoding="UTF-8" %>
+<!DOCTYPE html>
+<html lang="sr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pregledi</title>
+  <style>
+    :root { --bg:#f7f7fb; --ink:#1f2937; --muted:#6b7280; --pri:#2563eb; --ok:#10b981; --warn:#f59e0b; --err:#ef4444; --card:#ffffff; }
+    *{ box-sizing:border-box; }
+    body{ margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Helvetica,Arial; background:var(--bg); color:var(--ink); }
+    header{ background:#111827; color:#fff; padding:14px 18px; display:flex; align-items:center; gap:16px; }
+    header nav a{ color:#d1d5db; text-decoration:none; margin-right:14px; }
+    header nav a:hover{ color:#fff; }
+    .wrap{ max-width:1200px; margin:20px auto; padding:0 16px; }
+    .grid{ display:grid; grid-template-columns:1fr; gap:16px; }
+    .card{ background:var(--card); border-radius:14px; box-shadow:0 1px 2px rgba(0,0,0,.06); padding:16px; }
+    .row{ display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end; }
+    label{ display:block; font-size:12px; color:var(--muted); margin-bottom:6px; }
+    input, select{ height:38px; padding:0 10px; border:1px solid #e5e7eb; border-radius:10px; outline:none; }
+    input:focus, select:focus{ border-color:var(--pri); box-shadow:0 0 0 3px rgba(37,99,235,.12); }
+    button{ height:38px; padding:0 14px; border:0; border-radius:10px; background:var(--pri); color:#fff; cursor:pointer; }
+    button.ghost{ background:#e5e7eb; color:#111827; }
+    button.ok{ background:var(--ok); }
+    button.warn{ background:var(--warn); }
+    button.err{ background:var(--err); }
+    table{ width:100%; border-collapse:collapse; }
+    th, td{ padding:10px 8px; border-bottom:1px solid #f1f5f9; text-align:left; font-size:14px; }
+    th{ font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
+    .right{ text-align:right; }
+    .muted{ color:var(--muted); }
+    .hidden{ display:none !important; }
+    .pill{ display:inline-block; padding:2px 8px; border-radius:999px; font-size:12px; }
+    .pill.ok{ background:#ecfdf5; color:#065f46; }
+    .pill.warn{ background:#fffbeb; color:#92400e; }
+    .pill.err{ background:#fef2f2; color:#991b1b; }
+  </style>
+  <!-- Podesi putanju ako je drugačija: /static/js/auth.js ili /js/auth.js -->
+  <script src="/js/auth.js"></script>
+</head>
+<body>
+<header>
+  <div style="font-weight:700">Veterinarska stanica</div>
+  <nav style="flex:1 1 auto">
+    <a href="/">Početna</a>
+    <a href="/pregledi" aria-current="page">Pregledi</a>
+    <a id="navIzvestaji" href="/izvestaji">Izveštaji</a>
+  </nav>
+  <div id="userInfo" class="muted" style="margin-right:10px"></div>
+  <button id="btnLogout" class="ghost" style="display:none">Odjava</button>
+</header>
+
+<div class="wrap">
+  <div class="grid">
+
+    <!-- 1) ADMIN FILTER BAR (OSTAJE SAMO ADMINU) -->
+    <section id="adminFilters" class="card">
+      <div class="row">
+        <div>
+          <label for="f_datum">Datum</label>
+          <input id="f_datum" type="date" />
+        </div>
+        <div>
+          <label for="f_id">ID pregleda</label>
+          <input id="f_id" type="number" min="1" placeholder="npr. 123" />
+        </div>
+        <div class="row" style="gap:8px">
+          <button id="btnShowDay" class="ghost">Prikaži za dan</button>
+          <button id="btnShowVet" class="ghost">Prikaži za veterinara</button>
+          <button id="btnShowRole" class="ghost">Prikaži sve po ulozi</button>
+          <button id="btnShowAll" class="ghost">Prikaži sve</button>
+        </div>
+      </div>
+      <div id="adminFiltersMsg" class="muted" style="margin-top:6px"></div>
+    </section>
+
+    <!-- 2) VLASNIK – FORMA ZA ZAKAZIVANJE/IZMENU (BEZ RUČNOG ID) -->
+    <section id="ownerFormCard" class="card hidden">
+      <h3 style="margin:0 0 10px 0">Zakazivanje/izmena pregleda</h3>
+      <div class="row">
+        <div style="min-width:220px">
+          <label for="selLjubimac">Moj ljubimac</label>
+          <select id="selLjubimac"></select>
+        </div>
+        <div style="min-width:220px">
+          <label for="selVeterinar">Veterinar</label>
+          <select id="selVeterinar"></select>
+        </div>
+        <div style="min-width:220px">
+          <label for="selTip">Tip pregleda</label>
+          <select id="selTip"></select>
+        </div>
+        <div>
+          <label for="dtVreme">Datum i vreme</label>
+          <input id="dtVreme" type="datetime-local" />
+        </div>
+        <div style="flex:1"></div>
+        <div class="row" style="gap:8px">
+          <button id="btnSacuvaj" class="ok">Sačuvaj</button>
+          <button id="btnReset" class="ghost">Očisti</button>
+        </div>
+      </div>
+      <div id="ownerFormMsg" class="muted" style="margin-top:6px"></div>
+    </section>
+
+    <!-- 3) LISTA PREGLEDA (ZA SVE ULOGE, ALI SADRŽAJ SE FILTRIRA) -->
+    <section class="card">
+      <div class="row" style="justify-content:space-between; align-items:center">
+        <h3 style="margin:0">Zakazani pregledi</h3>
+        <div class="muted" id="listMsg"></div>
+      </div>
+      <div style="overflow:auto">
+        <table id="tbl">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Datum/Vreme</th>
+              <th>Ljubimac</th>
+              <th>Vlasnik</th>
+              <th>Veterinar</th>
+              <th>Tip</th>
+              <th>Status</th>
+              <th class="right">Akcije</th>
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </section>
+
+  </div>
+</div>
+
+<script>
+  // ===== POMOĆNE =====
+  function roles(){
+    try { return JSON.parse(localStorage.getItem('roles')||'[]'); } catch(_) { return []; }
+  }
+  function has(role){ return roles().some(r => (r.authority||'') === role); }
+  function isAdmin(){ return has('ROLE_ADMIN'); }
+  function isVet(){ return has('ROLE_VETERINAR'); }
+  function isOwner(){ return has('ROLE_VLASNIK'); }
+
+  function badge(status){
+    const s = String(status||'').toLowerCase();
+    if (s.includes('zakazan')) return '<span class="pill warn">zakazan</span>';
+    if (s.includes('urađen') || s.includes('uradjen')) return '<span class="pill ok">urađen</span>';
+    if (s.includes('otkazan')) return '<span class="pill err">otkazan</span>';
+    return '<span class="pill">'+(status||'')+'</span>';
+  }
+
+  // ===== UI PO ULOGAMA =====
+  function applyRoleVisibility(){
+    // Header info & Izveštaji
+    if (window.paintUserInfoHeader) window.paintUserInfoHeader();
+
+    // Admin bar vidljiv samo ADMIN-u
+    document.getElementById('adminFilters')?.classList.toggle('hidden', !isAdmin());
+
+    // Vlasnički form vidljiv samo vlasniku
+    document.getElementById('ownerFormCard')?.classList.toggle('hidden', !isOwner());
+  }
+
+  // ===== PUNJENJE PADALICA (VLASNIK) =====
+  async function loadOwnerCombos(){
+    if (!isOwner()) return;
+    const msg = id => document.getElementById(id);
+    try{
+      const [lj, vet, tip] = await Promise.all([
+        fetchJSON('/api/ljubimci/moji', { headers: authHeader() }),
+        fetchJSON('/api/veterinari', { headers: authHeader() }),
+        fetchJSON('/api/tipovi-pregleda', { headers: authHeader() })
+      ]);
+      fillSelect('selLjubimac', lj, 'id', 'ime');
+      fillSelect('selVeterinar', vet, 'id', 'punoIme');
+      fillSelect('selTip', tip, 'id', 'naziv');
+    }catch(e){ msg('ownerFormMsg').textContent = e.message; }
+  }
+  function fillSelect(id, items, valueKey, textKey){
+    const sel = document.getElementById(id); sel.innerHTML = '';
+    (items||[]).forEach(x => {
+      const opt = document.createElement('option');
+      opt.value = x[valueKey];
+      opt.textContent = x[textKey];
+      sel.appendChild(opt);
+    });
+  }
+
+  // ===== LISTA PREGLEDA =====
+  async function loadList(){
+    const out = document.getElementById('tbody');
+    const info = document.getElementById('listMsg');
+    out.innerHTML = '';
+    info.textContent = 'Učitavam...';
+
+    try{
+      // Različiti API pozivi po ulozi – prilagodi po backendu ako je drugačije
+      let url = '/api/pregledi';
+      if (isOwner()) url = '/api/pregledi/moji';
+      if (isVet())   url = '/api/pregledi/za-veterinara-mene';
+
+      const data = await fetchJSON(url, { headers: authHeader() });
+      (data||[]).forEach(row => out.appendChild(trRow(row)));
+      info.textContent = (data||[]).length ? '' : 'Nema zapisa.';
+    }catch(e){ info.textContent = e.message; }
+  }
+
+  function trRow(x){
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${x.id}</td>
+      <td>${fmtDateTime(x.vreme)}</td>
+      <td>${safe(x.ljubimacIme)}</td>
+      <td>${safe(x.vlasnikIme)}</td>
+      <td>${safe(x.veterinarIme)}</td>
+      <td>${safe(x.tipNaziv)}</td>
+      <td>${badge(x.status)}</td>
+      <td class="right">${actionsCell(x)}</td>
+    `;
+    // Klik na red -> popuni form (vlasnik samo svoje)
+    if (isOwner()) {
+      tr.style.cursor='pointer';
+      tr.onclick = ()=> fillOwnerFormForEdit(x);
+    }
+    return tr;
+  }
+
+  function actionsCell(x){
+    const btns = [];
+    if (isOwner()){
+      btns.push(`<button class="warn" data-act="edit" data-id="${x.id}">Izmeni</button>`);
+      btns.push(`<button class="err" data-act="del" data-id="${x.id}">Otkaži</button>`);
+    } else if (isVet()){
+      // Veterinar: ne diramo postojeće – ako backend već dozvoljava status/unos nalaza, može ostati
+      // Ostavimo prazno ili po potrebi dodati postojeće dugmiće iz tvoje implementacije
+    } else if (isAdmin()){
+      // Admin – bez promena (može sve što već imaš)
+    }
+    return btns.join(' ');
+  }
+
+  function safe(v){ return (v==null?'':String(v)); }
+  function pad(n){ return n<10?'0'+n:n; }
+  function fmtDateTime(iso){
+    if (!iso) return '';
+    try{
+      const d = new Date(iso);
+      return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    }catch(_){ return iso; }
+  }
+
+  // ===== VLASNIK – EDIT/CREATE FLOW =====
+  let editingId = null;
+  function fillOwnerFormForEdit(x){
+    editingId = x.id;
+    selByVal('selLjubimac', x.ljubimacId);
+    selByVal('selVeterinar', x.veterinarId);
+    selByVal('selTip', x.tipId);
+    document.getElementById('dtVreme').value = toLocalDTValue(x.vreme);
+    document.getElementById('ownerFormMsg').textContent = `Uređujete pregled #${x.id}`;
+  }
+  function toLocalDTValue(iso){
+    if (!iso) return '';
+    const d = new Date(iso);
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    return d.toISOString().slice(0,16); // yyyy-MM-ddTHH:mm
+  }
+  function selByVal(id,val){ const s=document.getElementById(id); if(!s) return; [...s.options].forEach(o=>{o.selected = String(o.value)===String(val);}); }
+
+  async function saveOwner(){
+    const body = {
+      ljubimacId: Number(document.getElementById('selLjubimac').value),
+      veterinarId: Number(document.getElementById('selVeterinar').value),
+      tipId: Number(document.getElementById('selTip').value),
+      vreme: new Date(document.getElementById('dtVreme').value).toISOString()
+    };
+    const msg = document.getElementById('ownerFormMsg');
+    msg.textContent = 'Snimam...';
+    try{
+      if (editingId){
+        await fetchJSON(`/api/pregledi/${editingId}`, {
+          method:'PUT', headers: { 'Content-Type':'application/json', ...authHeader() }, body: JSON.stringify(body)
+        }, 'ownerFormMsg');
+        msg.textContent = 'Izmenjeno.';
+      } else {
+        await fetchJSON('/api/pregledi', {
+          method:'POST', headers: { 'Content-Type':'application/json', ...authHeader() }, body: JSON.stringify(body)
+        }, 'ownerFormMsg');
+        msg.textContent = 'Zakazano.';
+      }
+      editingId = null;
+      document.getElementById('btnReset').click();
+      await loadList();
+    }catch(e){ msg.textContent = e.message; }
+  }
+
+  async function cancelOwner(id){
+    if (!confirm('Da li ste sigurni da želite da otkažete termin?')) return;
+    try{
+      await fetchJSON(`/api/pregledi/${id}`, { method:'DELETE', headers: authHeader() }, null);
+      await loadList();
+    }catch(e){ alert(e.message); }
+  }
+
+  // Delegacija za Akcije u tabeli
+  document.addEventListener('click', (e)=>{
+    const t = e.target;
+    if (!(t instanceof HTMLElement)) return;
+    const act = t.getAttribute('data-act');
+    const id  = t.getAttribute('data-id');
+    if (!act) return;
+    if (act==='edit'){ // za vlasnika popuni formu – klik na red već radi, ali i dugme može
+      const tr = t.closest('tr');
+      if (!tr) return;
+      const cells = tr.querySelectorAll('td');
+      // Ako želiš tačno popunjavanje iz DOM-a, ovde bi trebalo doći iz dataset-a; mi se oslanjamo na click na red
+    }
+    if (act==='del' && id) cancelOwner(id);
+  });
+
+  // ===== ADMIN dugmad (postoje samo vizuelno adminu) =====
+  function bindAdmin(){
+    if (!isAdmin()) return;
+    const $ = id => document.getElementById(id);
+    $('btnShowAll').onclick  = ()=> reloadAdmin('/api/pregledi');
+    $('btnShowDay').onclick  = ()=> {
+      const d = $('f_datum').value; if (!d) return showMsg('adminFiltersMsg','Izaberi datum.');
+      reloadAdmin(`/api/pregledi?dan=${encodeURIComponent(d)}`);
+    };
+    $('btnShowVet').onclick  = ()=> reloadAdmin('/api/pregledi?grupa=veterinar');
+    $('btnShowRole').onclick = ()=> reloadAdmin('/api/pregledi?grupa=uloga');
+  }
+  async function reloadAdmin(url){
+    const out = document.getElementById('tbody');
+    const info = document.getElementById('listMsg');
+    out.innerHTML=''; info.textContent='Učitavam...';
+    try{ const data = await fetchJSON(url, { headers: authHeader() }); (data||[]).forEach(r=>out.appendChild(trRow(r))); info.textContent=''; }
+    catch(e){ info.textContent=e.message; }
+  }
+
+  // ===== INIT =====
+  document.addEventListener('DOMContentLoaded', async () => {
+    applyRoleVisibility();
+    if (isOwner()) await loadOwnerCombos();
+    bindAdmin();
+    await loadList();
+
+    // Vlasnički form – akcije
+    const btnSave = document.getElementById('btnSacuvaj');
+    const btnReset = document.getElementById('btnReset');
+    if (btnSave) btnSave.onclick = saveOwner;
+    if (btnReset) btnReset.onclick = ()=>{
+      editingId = null;
+      document.getElementById('ownerFormMsg').textContent='';
+      document.getElementById('selLjubimac').selectedIndex = 0;
+      document.getElementById('selVeterinar').selectedIndex = 0;
+      document.getElementById('selTip').selectedIndex = 0;
+      document.getElementById('dtVreme').value = '';
+    };
+  });
+</script>
+</body>
+</html>

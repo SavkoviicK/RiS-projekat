@@ -1,0 +1,18 @@
+package com.veterinarska.stanica.controller;
+
+@RestController
+@RequestMapping("/api/mail")
+public class MailController {
+
+    private final EmailService emailService;
+
+    public MailController(EmailService emailService) {
+        this.emailService = emailService;
+    }
+
+    @GetMapping("/test")
+    public String testMail() {
+        emailService.posaljiTestEmail();
+        return "Poruka poslata!";
+    }
+}

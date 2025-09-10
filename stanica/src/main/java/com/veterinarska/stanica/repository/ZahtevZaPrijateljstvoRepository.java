@@ -1,0 +1,13 @@
+package com.veterinarska.stanica.repository;
+
+import com.veterinarska.stanica.model.ZahtevZaPrijateljstvo;
+import com.veterinarska.stanica.model.Korisnik;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.util.List;
+
+public interface ZahtevZaPrijateljstvoRepository extends JpaRepository<ZahtevZaPrijateljstvo, Long> {
+    boolean existsByPosiljalacAndPrimalacAndStatus(Korisnik posiljalac, Korisnik primalac, ZahtevZaPrijateljstvo.Status status);
+    List<ZahtevZaPrijateljstvo> findByPrimalacAndStatus(Korisnik primalac, ZahtevZaPrijateljstvo.Status status);
+    List<ZahtevZaPrijateljstvo> findByPosiljalac(Korisnik posiljalac);
+}

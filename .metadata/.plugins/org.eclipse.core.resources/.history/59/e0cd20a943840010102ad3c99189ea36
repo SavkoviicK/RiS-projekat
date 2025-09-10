@@ -1,0 +1,20 @@
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.userdetails.User;
+// ...
+
+@Override
+public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
+    Korisnik k = korisnikRepo.findByEmail(email)
+        .orElseThrow(() -> new UsernameNotFoundException("Nepostojeći email: " + email));
+
+    // KLJUČNA LINIJA: prefiks "ROLE_" !!!
+    var authority = new SimpleGrantedAuthority("ROLE_" + k.getUloga().name());
+
+    return new User(
+        k.getEmail(),
+        k.getLozinka(),               // mora biti bcrypt hash u bazi
+        k.getAktivan(),               // enabled
+        true, true, true,             // accountNonExpired, credentialsNonExpired, accountNonLocked
+        List.of(authority)
+    );
+}

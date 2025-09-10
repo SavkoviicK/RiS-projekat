@@ -1,0 +1,583 @@
+<%@ page contentType="text/html; charset=UTF-8" %>
+<!DOCTYPE html>
+<html lang="sr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Komunikacija</title>
+  <style>
+    :root{
+      --bg:#f7f9fb; --card:#fff; --line:#e6e6e6; --muted:#666; --brand:#0b5ed7;
+      --ok:#2e7d32; --warn:#c62828; --tab:#eef3ff; --tabActive:#e7f0ff;
+    }
+    *{box-sizing:border-box}
+    body{font-family:system-ui,Arial;margin:0;background:var(--bg)}
+    header{display:flex;align-items:center;justify-content:space-between;gap:16px;
+           padding:16px 24px;background:#fff;border-bottom:1px solid var(--line)}
+    nav a{margin-right:12px;text-decoration:none;color:var(--brand)}
+
+    .wrap{max-width:1200px;margin:24px auto;padding:0 16px}
+    .layout{display:grid;grid-template-columns:340px 1fr;gap:16px}
+
+    .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px}
+    .muted{color:var(--muted);font-size:.92em}
+    .btn{background:var(--brand);color:#fff;border:none;border-radius:8px;padding:8px 12px;cursor:pointer}
+    .btn:disabled{opacity:.6;cursor:not-allowed}
+    .btn-accept{background:#4caf50;color:#fff}
+    .btn-decline{background:#f44336;color:#fff}
+    .btn-tone{background:#eef3ff;color:#123;border:1px solid #d7e7ff}
+    .input,select,textarea{padding:10px;border:1px solid #dcdcdc;border-radius:8px;background:#fff}
+
+    /* Sidebar tabs */
+    .tabs{display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap}
+    .tab{padding:8px 10px;border-radius:8px;border:1px solid #d7e7ff;background:var(--tab);cursor:pointer}
+    .tab.active{background:var(--tabActive);border-color:#bcd4ff}
+
+    /* Lists */
+    .list{margin:0;padding:0;list-style:none}
+    .list li{display:flex;justify-content:space-between;align-items:center;gap:10px;
+             padding:10px;border-radius:10px}
+    .list li:hover{background:#f7faff}
+    .pill{padding:0 8px;border-radius:999px;background:#eef3ff;border:1px solid #d7e7ff}
+
+    /* Chat */
+    .chatWrap{display:flex;flex-direction:column;height:72vh}
+    .chatList{flex:1;overflow:auto;padding:8px}
+    .msgRow{display:flex;margin:6px 0}
+    .msgRow.sent{justify-content:flex-end}
+    .bubble{max-width:70%;padding:10px 12px;border-radius:14px;border:1px solid #e7e7e7;background:#fff}
+    .sent .bubble{background:var(--brand);color:#fff;border-color:var(--brand)}
+    .meta{font-size:.8em;opacity:.85;margin-top:4px}
+    .composer{display:flex;gap:8px;align-items:flex-start;border-top:1px solid #eef1f4;padding-top:10px}
+
+    table{width:100%;border-collapse:collapse}
+    th,td{padding:8px;border-top:1px solid #eee;text-align:left}
+    thead tr{background:#f2f4f7}
+  </style>
+  <script defer src="/js/auth.js"></script>
+</head>
+<body>
+<header>
+  <div style="display:flex;align-items:center;gap:12px">
+    <img src="/img/logo.png" alt="Logo" style="height:46px" />
+    <strong>Veterinarska stanica</strong>
+  </div>
+  <nav>
+    <a href="/">Početna</a>
+    <a href="/ljubimci">Ljubimci</a>
+    <a href="/pregledi">Pregledi</a>
+    <a href="/komunikacija"><strong>Komunikacija</strong></a>
+    <a id="navIzvestaji" href="/izvestaji" style="display:none">Izveštaji</a>
+  </nav>
+  <div id="userBox"><span id="userInfo"></span>
+    <button id="btnLogout" style="display:none;margin-left:8px" class="btn-tone">Odjava</button>
+  </div>
+</header>
+
+<div class="wrap">
+  <h1 style="margin:6px 0 12px">💬 Komunikacija</h1>
+  <div class="muted" style="margin:0 0 14px">
+    Vlasnik → vlasnik: moguće tek kad ste prijatelji. Vlasnik ↔ veterinar/admin: uvek dozvoljeno.
+  </div>
+  <div id="info" class="muted" style="margin:6px 0 16px 0"></div>
+
+  <!-- NO-ACCESS -->
+  <div id="noAccess" class="card" style="display:none;text-align:center">
+    <p>Morate biti prijavljeni da biste koristili komunikaciju.</p>
+    <a class="btn" href="/prijava">Prijava</a>
+  </div>
+
+  <!-- TWO-COLUMN LAYOUT -->
+  <div id="zone" class="layout" style="display:none">
+    <!-- LEFT: People & Requests -->
+    <div class="card">
+      <div class="tabs">
+        <div id="tabZahtevi"    class="tab active">Zahtevi</div>
+        <div id="tabPrijatelji" class="tab">Prijatelji</div>
+        <div id="tabNovaPoruka" class="tab">Nova poruka</div>
+      </div>
+
+      <!-- Zahtevi -->
+      <section id="secZahtevi">
+        <h3 style="margin:0 0 8px">Stigli zahtevi</h3>
+        <ul id="ulZahtevi" class="list">
+          <li class="muted" id="zahEmpty">Učitavam…</li>
+        </ul>
+
+        <hr style="margin:12px 0">
+
+        <h3 style="margin:0 0 8px">Pošalji zahtev vlasniku</h3>
+        <form id="frmZahtev" onsubmit="return posaljiZahtev(event)" style="display:flex;gap:8px;flex-wrap:wrap">
+          <select id="selVlasnik" class="input" style="min-width:270px">
+            <option value="">— izaberi vlasnika —</option>
+          </select>
+          <button class="btn" type="submit">Pošalji zahtev</button>
+          <span id="msgZahtev" class="muted"></span>
+        </form>
+      </section>
+
+      <!-- Prijatelji -->
+      <section id="secPrijatelji" style="display:none">
+        <h3 style="margin:0 0 8px">Moji prijatelji</h3>
+        <table>
+          <thead><tr><th>Ime i prezime</th><th>Email</th><th></th></tr></thead>
+          <tbody id="tbodyPrijatelji">
+            <tr><td colspan="3" class="muted">Učitavam…</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <!-- Nova poruka -->
+      <section id="secNova" style="display:none">
+        <h3 style="margin:0 0 8px">Pošalji poruku</h3>
+        <div class="muted" style="margin-bottom:6px" id="hintNova"></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <label>Primalac</label>
+          <select id="selPrimalac" class="input" style="min-width:270px">
+            <option value="">— izaberi primaoca —</option>
+          </select>
+          <span class="muted">Ako ne vidiš nekog, proveri prijateljstvo.</span>
+        </div>
+      </section>
+    </div>
+
+    <!-- RIGHT: Chat -->
+    <div class="card chatWrap">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <div style="display:flex;gap:8px;align-items:center">
+          <button id="btnAll" class="btn-tone" title="Prikaži sve poruke">Sve poruke</button>
+          <span id="badgePeer" class="pill" style="display:none"></span>
+        </div>
+        <div class="muted" id="listMsg">Učitavam…</div>
+      </div>
+
+      <div id="chatList" class="chatList"></div>
+
+      <div class="composer">
+        <textarea id="inpSadrzaj" rows="2" class="input" placeholder="Napiši poruku…" style="flex:1"></textarea>
+        <button id="btnSend" class="btn">Pošalji</button>
+        <div id="sendMsg" class="muted" style="min-width:160px"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ---------- Header ---------- */
+(function headerPaint(){
+  const info=document.getElementById('userInfo');
+  const btn=document.getElementById('btnLogout');
+  const navIzv=document.getElementById('navIzvestaji');
+
+  const t=localStorage.getItem('jwt');
+  const roles=JSON.parse(localStorage.getItem('roles')||'[]');
+
+  if(t){
+    const rolesNice = roles.map(r => String(r.authority||r).replace(/^ROLE_/,''));
+    const txt = rolesNice.length ? 'Prijavljen ('+rolesNice.join(', ')+')' : 'Prijavljen';
+    info.textContent = txt;
+    btn.style.display='inline-block';
+    btn.onclick=()=>{ localStorage.removeItem('jwt'); localStorage.removeItem('roles'); location.href='/'; };
+  }else{
+    info.innerHTML='<a href="/prijava">Prijavi se</a>';
+    btn.style.display='none';
+  }
+  const isAdmin = roles.some(r=>r.authority==='ROLE_ADMIN');
+  if(navIzv) navIzv.style.display = isAdmin ? 'inline' : 'none';
+})();
+
+/* ---------- Helpers ---------- */
+function authHeader(){ const t=localStorage.getItem('jwt'); return t?{'Authorization':'Bearer '+t}:{ }; }
+function fmtDate(v){ try{const d=new Date(v); return isNaN(d)?String(v):d.toLocaleString();}catch(_){return String(v);} }
+function roleNames(){ try{ return JSON.parse(localStorage.getItem('roles')||'[]').map(r=>String(r.authority||r).replace(/^ROLE_/,'').toUpperCase()); } catch(_){return [];} }
+function canUse(){ const n=roleNames(); return n.includes('VLASNIK')||n.includes('VETERINAR')||n.includes('ADMIN'); }
+
+/* Minimalna fetch helper */
+async function fetchJSON(url, opts={}, msgId=null, okMsg=null){
+  const res = await fetch(url, opts);
+  const ct = (res.headers.get('content-type')||'');
+  const isJson = ct.includes('application/json');
+  if(!res.ok){
+    const txt = isJson ? (await res.json()).message || 'Greška' : (await res.text().catch(()=>('HTTP '+res.status)));
+    if(msgId){ const el=document.getElementById(msgId); if(el) el.textContent='Greška: '+txt; }
+    throw new Error(txt);
+  }
+  if(msgId && okMsg!==null){ const el=document.getElementById(msgId); if(el) el.textContent= okMsg || ''; }
+  return isJson ? await res.json() : await res.text();
+}
+
+/* whoami */
+async function getMe(){
+  try{
+    const raw = await fetchJSON('/api/whoami', { headers: authHeader() });
+    const id = raw.id ?? raw.userId ?? raw.korisnikId ?? raw.veterinarId ?? raw.vlasnikId ?? null;
+    const email = raw.email || raw.username || raw.korisnikEmail || raw.mail || null;
+    let roles=[]; try{ const src = raw.authorities || raw.roles || raw.uloge || []; roles = (Array.isArray(src)?src:[]).map(r=>String(r.authority||r).replace(/^ROLE_/,'').toUpperCase()); }catch(_){}
+    const ime = raw.ime || ''; const prezime = raw.prezime || '';
+    return { id, email, roles, ime, prezime };
+  }catch(_){ return { id:null, email:null, roles:[], ime:'', prezime:'' }; }
+}
+
+/* ---------- Global ---------- */
+let ME = { id:null, email:null, roles:[], ime:'', prezime:'' };
+let ALL_MSGS = [];
+let CURRENT_PEER_ID = null;
+let PEERS = []; // [{id,email,label,count}]
+
+/* ---------- Tabs ---------- */
+const tabZah = document.getElementById('tabZahtevi');
+const tabPr  = document.getElementById('tabPrijatelji');
+const tabNv  = document.getElementById('tabNovaPoruka');
+const secZah = document.getElementById('secZahtevi');
+const secPr  = document.getElementById('secPrijatelji');
+const secNv  = document.getElementById('secNova');
+
+function setTab(which){
+  [tabZah,tabPr,tabNv].forEach(t=>t.classList.remove('active'));
+  [secZah,secPr,secNv].forEach(s=>s.style.display='none');
+  if(which==='zah'){ tabZah.classList.add('active'); secZah.style.display='block'; }
+  else if(which==='pr'){ tabPr.classList.add('active'); secPr.style.display='block'; }
+  else { tabNv.classList.add('active'); secNv.style.display='block'; }
+}
+tabZah.onclick=()=>setTab('zah');
+tabPr.onclick =()=>setTab('pr');
+tabNv.onclick =()=>{ setTab('nv'); loadPrimaoci(); };
+
+/* ---------- Sidebar: Zahtevi ---------- */
+async function ucitajZahteve(){
+  const ul = document.getElementById('ulZahtevi');
+  const empty = document.getElementById('zahEmpty');
+  ul.innerHTML='';
+  empty.style.display='block'; empty.textContent='Učitavam…';
+  try{
+    const list = await fetchJSON('/api/prijatelji/na-cekaju', { headers: authHeader() });
+    ul.innerHTML='';
+    if(!Array.isArray(list) || !list.length){
+      empty.style.display='block'; empty.textContent='Nema novih zahteva.';
+      return;
+    }
+    empty.style.display='none';
+    list.forEach(z=>{
+      const ime = (z.posiljalac && (z.posiljalac.ime||'')) || '';
+      const prez = (z.posiljalac && (z.posiljalac.prezime||'')) || '';
+      const email = (z.posiljalac && (z.posiljalac.email||'')) || '';
+      const label = (ime||prez)?(ime+' '+prez).trim() : '';
+      const li = document.createElement('li');
+      li.innerHTML =
+        '<div><strong>'+ (label||('Korisnik #'+(z.posiljalac && z.posiljalac.id ? z.posiljalac.id : ''))) +
+        '</strong> '+ (email?('<span class="muted">('+email+')</span>'):'') + '</div>' +
+        '<div style="display:flex;gap:6px">' +
+        '<button class="btn-accept" onclick="return odgovor('+ Number(z.id) +',true)">Prihvati</button>' +
+        '<button class="btn-decline" onclick="return odgovor('+ Number(z.id) +',false)">Odbij</button>' +
+        '</div>';
+      ul.appendChild(li);
+    });
+  }catch(e){
+    empty.style.display='block'; empty.textContent='Greška: '+(e.message||'');
+  }
+}
+async function odgovor(zahtevId,prihvati){
+  try{
+    const res = await fetch('/api/prijatelji/odgovor?zahtevId='+zahtevId+'&prihvati='+prihvati, { method:'POST', headers: authHeader() });
+    const txt = await res.text();
+    if(!res.ok) throw new Error(txt||('HTTP '+res.status));
+    await Promise.all([ ucitajZahteve(), ucitajPrijatelje(), loadAll(), popuniVlasnike() ]);
+    alert(txt || 'Zahtev je ažuriran.');
+  }catch(e){ alert('Greška: '+(e.message||'')); }
+}
+
+/* slanje zahteva */
+async function posaljiZahtev(ev){
+  ev.preventDefault();
+  const sel = document.getElementById('selVlasnik');
+  const msg = document.getElementById('msgZahtev');
+  const id  = sel.value;
+  if(!id){ msg.textContent='Izaberi vlasnika.'; return false; }
+  msg.textContent='Šaljem…';
+  try{
+    const res = await fetch('/api/prijatelji/zahtev?primaocId='+encodeURIComponent(id), { method:'POST', headers: authHeader() });
+    const txt = await res.text();
+    if(!res.ok) throw new Error(txt||('HTTP '+res.status));
+    msg.textContent='Poslato ✅';
+    await Promise.all([ ucitajZahteve(), ucitajPrijatelje(), popuniVlasnike() ]);
+  }catch(e){ msg.textContent='Greška: '+(e.message||''); }
+  return false;
+}
+
+/* dropdown vlasnika za slanje zahteva */
+async function popuniVlasnike(){
+  const sel = document.getElementById('selVlasnik'); if(!sel) return;
+  sel.innerHTML = '<option value="">Učitavam…</option>';
+  const [prijRes, pendRes] = await Promise.all([
+    fetch('/api/prijatelji', { headers: authHeader() }),
+    fetch('/api/prijatelji/na-cekaju', { headers: authHeader() })
+  ]);
+  const prijatelji = prijRes.ok ? await prijRes.json() : [];
+  const pendinzi   = pendRes.ok ? await pendRes.json() : [];
+
+  const prijateljIds = new Set((Array.isArray(prijatelji)?prijatelji:[]).map(f => f.id));
+  const pendingPosiljaoci = new Set((Array.isArray(pendinzi)?pendinzi:[]).map(z => z.posiljalac && z.posiljalac.id));
+
+  const allRes = await fetch('/api/korisnici?rola=VLASNIK', { headers: authHeader() });
+  const svi = allRes.ok ? await allRes.json() : [];
+
+  const me = ME;
+  const kandidati = (Array.isArray(svi)?svi:[])
+    .map(u => ({
+      id: u.id ?? u.userId ?? u.korisnikId ?? u.vlasnikId,
+      ime: u.ime || '',
+      prezime: u.prezime || '',
+      email: u.email || u.username || ''
+    }))
+    .filter(u =>
+      u.id &&
+      !(me.id && u.id === me.id) &&
+      !(me.email && u.email && u.email.toLowerCase() === me.email.toLowerCase()) &&
+      !prijateljIds.has(u.id) &&
+      !pendingPosiljaoci.has(u.id)
+    );
+
+  sel.innerHTML = '<option value="">— izaberi vlasnika —</option>';
+  if(!kandidati.length){
+    const opt = document.createElement('option');
+    opt.value=''; opt.textContent='Nema dostupnih (svi su već prijatelji ili pending)';
+    sel.appendChild(opt);
+    sel.disabled=true; return;
+  }
+  sel.disabled=false;
+  kandidati.forEach(k=>{
+    const opt=document.createElement('option');
+    const label = ((k.ime||'')+' '+(k.prezime||'')).trim();
+    opt.value=String(k.id);
+    opt.textContent = (label ? (label+' – ') : '') + k.email + ' (#'+k.id+')';
+    sel.appendChild(opt);
+  });
+}
+
+/* ---------- Prijatelji tabela ---------- */
+async function ucitajPrijatelje(){
+  const tbody = document.getElementById('tbodyPrijatelji');
+  tbody.innerHTML='<tr><td colspan="3" class="muted">Učitavam…</td></tr>';
+  try{
+    const list = await fetchJSON('/api/prijatelji', { headers: authHeader() });
+    tbody.innerHTML='';
+    if(!Array.isArray(list) || !list.length){
+      tbody.innerHTML='<tr><td colspan="3" class="muted">Još nemaš prijatelja</td></tr>'; return;
+    }
+    list.forEach(f=>{
+      const ime  = f.ime || '';
+      const prez = f.prezime || '';
+      const email = f.email || '';
+      const full = ((ime||'')+' '+(prez||'')).trim();
+      const tr = document.createElement('tr');
+      tr.innerHTML =
+        '<td>'+ (full || '—') +'</td>' +
+        '<td>'+ (email||'') +'</td>' +
+        '<td><button class="btn-tone" onclick="openChatWith('+ Number(f.id) +')">Chat</button></td>';
+      tbody.appendChild(tr);
+    });
+  }catch(e){
+    tbody.innerHTML='<tr><td colspan="3" class="muted">Greška: '+(e.message||'')+'</td></tr>';
+  }
+}
+function openChatWith(id){ setPeer(id); }
+
+/* ---------- Poruke / Chat ---------- */
+function buildPeers(){
+  const map = new Map();
+  for(const m of ALL_MSGS){
+    const sid=m.posiljalacId, rid=m.primalacId;
+    const se=m.posiljalacEmail, re=m.primalacEmail;
+
+    let peerId=null, peerEmail=null;
+    if (ME.id != null){
+      if (sid===ME.id){ peerId=rid; peerEmail=re; }
+      else if (rid===ME.id){ peerId=sid; peerEmail=se; }
+    }
+    if (peerId==null){
+      if (ME.email && se && se!==ME.email){ peerId = sid; peerEmail = se; }
+      else if (ME.email && re && re!==ME.email){ peerId = rid; peerEmail = re; }
+    }
+    if (peerId==null) continue;
+
+    const label = peerEmail ? (peerEmail+' (#'+peerId+')') : ('#'+peerId);
+    if(!map.has(peerId)) map.set(peerId, { id:peerId, email:peerEmail||'', label, count:0 });
+    map.get(peerId).count++;
+  }
+  PEERS = Array.from(map.values()).sort((a,b)=> b.count-a.count);
+}
+
+function renderChat(){
+  const listMsg = document.getElementById('listMsg');
+  const chat = document.getElementById('chatList');
+  const badge = document.getElementById('badgePeer');
+  chat.innerHTML='';
+  badge.style.display = CURRENT_PEER_ID!=null ? 'inline-block' : 'none';
+  badge.textContent = CURRENT_PEER_ID!=null ? ('Sagovornik #'+CURRENT_PEER_ID) : '';
+
+  let msgs = ALL_MSGS.slice();
+  const myId=ME.id, myEmail=ME.email;
+  if (CURRENT_PEER_ID!=null){
+    msgs = msgs.filter(m=>{
+      const sid=m.posiljalacId, rid=m.primalacId;
+      const se=m.posiljalacEmail, re=m.primalacEmail;
+      const other = CURRENT_PEER_ID;
+
+      const iAmReceiver = (rid===myId) || (!!myEmail && re===myEmail);
+      const iAmSender   = (sid===myId) || (!!myEmail && se===myEmail);
+
+      const otherIsSender   = (sid===other);
+      const otherIsReceiver = (rid===other);
+      return (otherIsSender && iAmReceiver) || (otherIsReceiver && iAmSender);
+    });
+  }
+
+  if(!msgs.length){ listMsg.textContent = CURRENT_PEER_ID==null ? 'Nema poruka.' : 'Nema poruka u ovoj konverzaciji.'; return; }
+  listMsg.textContent='';
+
+  msgs.forEach(m=>{
+    const sent = (m.posiljalacId===myId) || (!!myEmail && m.posiljalacEmail===myEmail);
+    const row=document.createElement('div'); row.className='msgRow '+(sent?'sent':'recv');
+    const bubble=document.createElement('div'); bubble.className='bubble';
+    const when = m.vreme || m.datum;
+    bubble.innerHTML =
+      '<div>'+ (m.sadrzaj||'') +'</div>'+
+      '<div class="meta">'+ (sent?'Vi':'Oni') +' · '+ fmtDate(when) +'</div>';
+    row.appendChild(bubble); chat.appendChild(row);
+  });
+  chat.scrollTop = chat.scrollHeight;
+}
+
+async function loadAll(){
+  const listMsg = document.getElementById('listMsg');
+  listMsg.textContent='Učitavam…';
+  try{
+    const data = await fetchJSON('/api/poruke', { headers: authHeader() });
+    ALL_MSGS = Array.isArray(data)?data:[];
+    buildPeers();
+    renderChat();
+  }catch(_){
+    ALL_MSGS=[]; PEERS=[]; renderChat();
+  }
+}
+
+/* Primaoci za „Nova poruka“ (role-aware) */
+async function loadPrimaoci(){
+  const sel  = document.getElementById('selPrimalac');
+  const my = roleNames();
+  sel.disabled = true; sel.innerHTML = '<option value="">Učitavam…</option>';
+
+  // VLASNIK -> vidi VETERINAR + ADMIN + njegove PRIJATELJE (vlasnike)
+  // VETERINAR -> vidi VLASNIKE + ADMIN
+  // ADMIN -> vidi sve (VLASNIK + VETERINAR)
+  const wants = [];
+  if (my.includes('VLASNIK'))      wants.push('VETERINAR','ADMIN');
+  else if (my.includes('VETERINAR')) wants.push('VLASNIK','ADMIN');
+  else if (my.includes('ADMIN'))     wants.push('VLASNIK','VETERINAR');
+
+  let users = [];
+  for (const r of wants){
+    try{
+      const part = await fetchJSON('/api/korisnici?rola='+encodeURIComponent(r), { headers: authHeader() });
+      if (Array.isArray(part)) users = users.concat(part);
+    }catch(_){}
+  }
+
+  // plus prijatelji (uglavnom vlasnici↔vlasnici)
+  try{
+    const friends = await fetchJSON('/api/prijatelji', { headers: authHeader() });
+    if (Array.isArray(friends)) users = users.concat(friends);
+  }catch(_){}
+
+  // uniq by id
+  const seen=new Set();
+  const normalized = users.map(raw=>{
+    const id    = raw.id ?? raw.userId ?? raw.korisnikId ?? raw.veterinarId ?? raw.vlasnikId;
+    const email = raw.email || raw.username || raw.korisnikEmail || raw.mail || '';
+    const ime   = raw.ime || '';
+    const prez  = raw.prezime || '';
+    return { id, email, ime, prez };
+  }).filter(u=>{
+    if(!u.id || !u.email) return false;
+    if (ME.id && u.id===ME.id) return false;
+    if (ME.email && u.email && u.email.toLowerCase()===String(ME.email||'').toLowerCase()) return false;
+    if(seen.has(u.id)) return false; seen.add(u.id); return true;
+  }).sort((a,b)=> String(a.email).localeCompare(String(b.email)));
+
+  sel.innerHTML = '<option value="">— izaberi primaoca —</option>';
+  normalized.forEach(u=>{
+    const full = ((u.ime||'')+' '+(u.prez||'')).trim();
+    const opt=document.createElement('option');
+    opt.value=String(u.id);
+    opt.textContent=(full?full+' – ':'')+u.email+' (#'+u.id+')';
+    sel.appendChild(opt);
+  });
+  sel.disabled=false;
+}
+
+/* Slanje poruke */
+function resolveRecipient(){
+  if (CURRENT_PEER_ID!=null) return CURRENT_PEER_ID;
+  const sel=document.getElementById('selPrimalac');
+  const v=sel?sel.value:'';
+  return v && /^\d+$/.test(v) ? Number(v) : null;
+}
+async function posaljiPoruku(){
+  const btn=document.getElementById('btnSend');
+  const recipId = resolveRecipient();
+  const sadrzaj = (document.getElementById('inpSadrzaj').value||'').trim();
+
+  if(!recipId || !sadrzaj){
+    document.getElementById('sendMsg').textContent = !recipId ? 'Izaberi sagovornika.' : 'Unesi sadržaj poruke.';
+    return;
+  }
+  btn.disabled=true; document.getElementById('sendMsg').textContent='Šaljem…';
+  try{
+    await fetchJSON('/api/poruke', {
+      method:'POST',
+      headers:{ ...authHeader(), 'Content-Type':'application/json' },
+      body:JSON.stringify({ primalacId:recipId, sadrzaj })
+    }, 'sendMsg');
+    document.getElementById('inpSadrzaj').value='';
+    document.getElementById('sendMsg').textContent='Poslato ✅';
+    await loadAll();
+  }catch(_){ /* poruka je već ispisana */ }
+  finally{ btn.disabled=false; }
+}
+
+/* Peer switch */
+function setPeer(id){
+  CURRENT_PEER_ID = id;
+  renderChat();
+  // automatski prebacimo na tab „Prijatelji“ ili ostavimo – nije kritično
+}
+
+/* ---------- INIT ---------- */
+window.addEventListener('load', async ()=>{
+  const token = localStorage.getItem('jwt');
+  const noacc = document.getElementById('noAccess');
+  const zone  = document.getElementById('zone');
+  if(!token){ noacc.style.display='block'; zone.style.display='none'; return; }
+
+  noacc.style.display='none'; zone.style.display='grid';
+  ME = await getMe();
+
+  // inicijalno stanje
+  await Promise.all([ ucitajZahteve(), ucitajPrijatelje(), loadAll(), popuniVlasnike() ]);
+
+  // UI vezivanja
+  document.getElementById('btnSend').addEventListener('click', posaljiPoruku);
+  document.getElementById('btnAll').addEventListener('click', ()=>{
+    CURRENT_PEER_ID=null; renderChat(); setTab('nv'); loadPrimaoci();
+  });
+
+  // hint za „Nova poruka“
+  const hintNova = document.getElementById('hintNova');
+  const rn = roleNames();
+  if (rn.includes('VLASNIK')) hintNova.textContent='Kao vlasnik možeš pisati veterinaru i adminu odmah, a drugim vlasnicima tek ako ste prijatelji.';
+  else if (rn.includes('VETERINAR')) hintNova.textContent='Kao veterinar možeš pisati vlasnicima i adminu.';
+  else if (rn.includes('ADMIN')) hintNova.textContent='Kao admin možeš pisati svima.';
+});
+</script>
+</body>
+</html>

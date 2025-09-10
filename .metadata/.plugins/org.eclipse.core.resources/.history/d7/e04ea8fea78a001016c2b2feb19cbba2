@@ -1,0 +1,95 @@
+package com.veterinarska.stanica.config;
+
+import com.veterinarska.stanica.security.JwtAuthFilter;
+import jakarta.servlet.DispatcherType;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+
+@Configuration
+public class SecurityConfig {
+
+    private final JwtAuthFilter jwtAuthFilter;
+
+    public SecurityConfig(JwtAuthFilter jwtAuthFilter) {
+        this.jwtAuthFilter = jwtAuthFilter;
+    }
+
+    @Bean
+    public PasswordEncoder passwordEncoder() { return new BCryptPasswordEncoder(); }
+
+    @Bean
+    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+        http
+            .csrf(AbstractHttpConfigurer::disable)
+            .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .authorizeHttpRequests(auth -> auth
+                // Dozvoli FORWARD/ERROR za JSP rendering
+                .dispatcherTypeMatchers(DispatcherType.FORWARD, DispatcherType.ERROR).permitAll()
+
+                // Statika i javne stranice
+                .requestMatchers("/", "/home", "/ljubimci", "/pregledi", "/poruke",
+                                 "/izvestaji", "/prijava", "/login", "/registracija",
+                                 "/img/**", "/css/**", "/js/**", "/webjars/**", "/favicon.ico")
+                    .permitAll()
+
+                // 👇 TEST JSP rute za prijatelje/poruke (otvoreno radi provere u browseru)
+                .requestMatchers("/friends", "/friends/respond", "/chat", "/chat/**")
+                    .permitAll()
+
+                // Public API
+                .requestMatchers("/api/ping").permitAll()
+                .requestMatchers("/api/auth/**").permitAll()
+                .requestMatchers("/api/korisnici/registracija").permitAll()
+                .requestMatchers("/v3/api-docs/**", "/swagger-ui.html", "/swagger-ui/**").permitAll()
+
+                // Ko je ulogovan
+                .requestMatchers("/api/whoami").authenticated()
+
+                // IZVEŠTAJI – samo ADMIN
+                .requestMatchers("/api/izvestaji/**").hasRole("ADMIN")
+
+                // USLUGE
+                .requestMatchers(HttpMethod.GET, "/api/usluge/resolve", "/api/usluge/resolve/**").authenticated()
+                .requestMatchers("/api/usluge/**").hasRole("ADMIN")
+
+                // KORISNICI
+                .requestMatchers("/api/korisnici/veterinari").authenticated()
+                .requestMatchers("/api/korisnici/**").hasAnyRole("ADMIN","VETERINAR","VLASNIK")
+
+                // PREGLEDI
+                .requestMatchers(HttpMethod.POST,   "/api/pregledi/**").hasAnyRole("VLASNIK","ADMIN")
+                .requestMatchers(HttpMethod.PUT,    "/api/pregledi/**").hasAnyRole("VLASNIK","ADMIN")
+                .requestMatchers(HttpMethod.DELETE, "/api/pregledi/**").hasAnyRole("VLASNIK","ADMIN")
+                .requestMatchers(HttpMethod.PATCH,  "/api/pregledi/*/status").hasAnyRole("VETERINAR","ADMIN")
+                .requestMatchers(HttpMethod.GET,    "/api/pregledi/**").authenticated()
+
+                // MEDICINSKI ZAPISI
+                .requestMatchers(HttpMethod.POST, "/api/medicinski-zapisi").hasAnyRole("VETERINAR","ADMIN")
+                .requestMatchers("/api/medicinski-zapisi/**").hasAnyRole("VETERINAR","ADMIN")
+
+                // LJUBIMCI – API
+                .requestMatchers("/api/ljubimci/**").hasAnyRole("VLASNIK","ADMIN")
+
+                // 👇 NAŠI API-JI ZA OVAJ MODUL
+                .requestMatchers("/api/prijatelji/**").permitAll()  // za test; posle staviti .authenticated()
+                .requestMatchers("/api/poruke/**").permitAll()   // koristimo srpsku verziju; za test otvoreno
+
+                // ❌ Uklonjeno: /api/messages/** (eng) — obrisali smo englesku verziju
+                // .requestMatchers("/api/messages/**").permitAll()
+
+                // Sve ostalo traži login
+                .anyRequest().authenticated()
+            )
+            .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+
+        return http.build();
+    }
+}
