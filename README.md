@@ -26,7 +26,6 @@ Cilj projekta je razvoj informacionog sistema za rad veterinarske stanice.
 ## 📂 Struktura repozitorijuma
 - `stanica/` – izvorni kod aplikacije  
 - `baza/` – SQL skripte za kreiranje i reset baze  
-- `slike/` – screenshotovi aplikacije  
 - `README.md` – ovaj fajl
 
 ---
