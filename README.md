@@ -34,6 +34,7 @@ Cilj projekta je razvoj informacionog sistema za rad veterinarske stanice.
 ## 📸 Slike aplikacije
 
 ![Logo](slike/veterinarska_stanica_vas_ljubimac.png)
+![Pocetna](slike/pocetna.jpg)
 ![Prikaz](slike/Screenshot%20from%202025-09-10%2021-20-19.png)
 ![Prikaz](slike/Screenshot%20from%202025-09-10%2021-20-27.png)
 ![Prikaz](slike/Screenshot%20from%202025-09-10%2021-20-59.png)
